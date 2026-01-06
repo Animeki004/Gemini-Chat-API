@@ -80,6 +80,27 @@ class Model(Enum):
         {"x-goog-ext-525001261-jspb": '[null,null,null,null,"203e6bb81620bcfe"]'},
         True,
     )
+    GEMINI_3_0_PRO = (
+        "gemini-3.0-pro",
+        {
+            "x-goog-ext-525001261-jspb": '[1,null,null,null,"e6fa609c3fa255c0",null,null,0,[4],null,null,2]'
+        },
+        False,
+    )
+    GEMINI_3_0_FLASH = (
+        "gemini-3.0-flash",
+        {
+            "x-goog-ext-525001261-jspb": '[1,null,null,null,"56fdd199312815e2",null,null,0,[4],null,null,2]'
+        },
+        False,
+    )
+    GEMINI_3_0_FLASH_THINKING = (
+        "gemini-3.0-flash-thinking",
+        {
+            "x-goog-ext-525001261-jspb": '[1,null,null,null,"e051ce1aa80aa576",null,null,0,[4],null,null,2]'
+        },
+        False,
+    )
 
     def __init__(self, name, header, advanced_only):
         """

@@ -292,7 +292,7 @@ class AsyncChatbot:
                 raise PermissionError("Authentication failed. Cookies might be invalid or expired. Please update them.")
 
             # Regex to find the SNlM0e value
-            snlm0e_match = re.search(r'["']SNlM0e["']\s*:\s*["'](.*?)["']', resp.text)
+            snlm0e_match = re.search(r"""["']SNlM0e["']\s*:\s*["'](.*?)["']""", resp.text)
             if not snlm0e_match:
                 error_message = "SNlM0e value not found in response."
                 if resp.status_code == 429:
@@ -405,42 +405,53 @@ class AsyncChatbot:
             )
             resp.raise_for_status()
 
-            # Process response
+            # Process response - Google sends multiple lines, we need to find the one with content
             lines = resp.text.splitlines()
             if len(lines) < 3:
                 raise ValueError(f"Unexpected response format. Status: {resp.status_code}. Content: {resp.text[:200]}...")
 
-            # Find the line with the response data
-            chat_data_line = None
-            for line in lines:
-                if line.startswith(")]}'"):
-                    chat_data_line = line[4:].strip()
-                    break
-                elif line.startswith("["):
-                    chat_data_line = line
-                    break
-
-            if not chat_data_line:
-                chat_data_line = lines[3] if len(lines) > 3 else lines[-1]
-                if chat_data_line.startswith(")]}'"):
-                    chat_data_line = chat_data_line[4:].strip()
-
-            # Parse the response JSON
-            response_json = json.loads(chat_data_line)
-
-            # Find the main response body
+            # Parse all lines and find the one with the actual response content
             body = None
             body_index = 0
-
-            for part_index, part in enumerate(response_json):
+            
+            for line in lines:
+                # Skip empty lines and the security prefix line
+                if not line or line == ")]}'":
+                    continue
+                    
+                # Remove the XSSI protection prefix if present
+                if line.startswith(")]}"):
+                    line = line[4:].strip()
+                
+                # Skip if not JSON
+                if not line.startswith("["):
+                    continue
+                
                 try:
-                    if isinstance(part, list) and len(part) > 2:
-                        main_part = json.loads(part[2])
-                        if main_part and len(main_part) > 4 and main_part[4]:
-                            body = main_part
-                            body_index = part_index
-                            break
-                except (IndexError, TypeError, json.JSONDecodeError):
+                    response_json = json.loads(line)
+                    
+                    # New Google API format: [["wrb.fr", null, "JSON_STRING"]]
+                    # The JSON_STRING contains: [null, [conversation_id, response_id], null, null, [[response_data]]]
+                    for part_index, part in enumerate(response_json):
+                        try:
+                            if isinstance(part, list) and len(part) > 2 and part[0] == "wrb.fr":
+                                # Parse the inner JSON string (at index 2)
+                                inner_json_str = part[2]
+                                if isinstance(inner_json_str, str):
+                                    main_part = json.loads(inner_json_str)
+                                    # Check if this has the response data at index 4
+                                    if main_part and len(main_part) > 4 and main_part[4]:
+                                        body = main_part
+                                        body_index = part_index
+                                        break
+                        except (IndexError, TypeError, json.JSONDecodeError):
+                            continue
+                    
+                    # If we found the body, stop searching
+                    if body:
+                        break
+                 
+                except json.JSONDecodeError:
                     continue
 
             if not body:
@@ -451,7 +462,8 @@ class AsyncChatbot:
                 # Extract main content
                 content = ""
                 if len(body) > 4 and len(body[4]) > 0 and len(body[4][0]) > 1:
-                    content = body[4][0][1][0] if len(body[4][0][1]) > 0 else ""
+                    # New format: body[4][0] = ["response_id", "content_text", ...]
+                    content = body[4][0][1]
 
                 # Extract conversation metadata
                 conversation_id = body[1][0] if len(body) > 1 and len(body[1]) > 0 else self.conversation_id
@@ -531,7 +543,6 @@ class AsyncChatbot:
                         candidate = body[4][0]
                         if len(candidate) > 22 and candidate[22]:
                             # Look for URLs in the candidate[22] field
-                            import re
                             content = candidate[22][0] if isinstance(candidate[22], list) and len(candidate[22]) > 0 else str(candidate[22])
                             urls = re.findall(r'https?://[^\s]+', content)
                             for i, url in enumerate(urls):
@@ -549,7 +560,6 @@ class AsyncChatbot:
                 # Format 4: Look for image URLs in the text content
                 if len(images) == 0 and len(generated_images) == 0 and content:
                     try:
-                        import re
                         # Look for image URLs in the content - try multiple patterns
 
                         # Pattern 1: Standard image URLs
