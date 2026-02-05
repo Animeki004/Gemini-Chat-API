@@ -57,7 +57,16 @@ You need to obtain your `__Secure-1PSID` and `__Secure-1PSIDTS` cookies from Goo
         }
     ]
     ```
-
+or you can use auto_cookie=True in chatbot to fetch the cookie auto.
+```python
+from gemini_client import Chatbot, Model
+# Initialize the chatbot
+try:
+    chatbot = Chatbot(auto_cookie=True, model=Model.G_2_5_PRO)
+except Exception as e:
+    print(f"Error initializing chatbot: {e}")
+    exit()
+```
 ### Synchronous Chatbot
 
 ```python

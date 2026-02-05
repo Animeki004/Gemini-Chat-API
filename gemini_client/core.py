@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Union, Optional
 
 from gemini_client.enums import Endpoint, Headers, Model
-
+from gemini_client.cookie_manager import CookieExtractor
 # Use curl_cffi for requests
 from curl_cffi import CurlError
 from curl_cffi.requests import AsyncSession
@@ -57,6 +57,7 @@ class Chatbot:
     def __init__(
         self,
         cookie_path: str,
+        auto_cookie: bool = False,
         proxy: Optional[Union[str, Dict[str, str]]] = None, # Allow string or dict proxy
         timeout: int = 20,
         model: Model = Model.UNSPECIFIED,
@@ -69,8 +70,12 @@ class Chatbot:
         except RuntimeError:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
-
-        self.secure_1psid, self.secure_1psidts = load_cookies(cookie_path)
+        if auto_cookie:
+            extractor = CookieExtractor()
+            cookie_data = extractor.extract_cookies(save_to_disk=False)
+            self.secure_1psid , self.secure_1psidts = cookie_data['__Secure-1PSID'], cookie_data['__Secure-1PSIDTS']
+        else:
+            self.secure_1psid, self.secure_1psidts = load_cookies(cookie_path)
         self.async_chatbot = self.loop.run_until_complete(
             AsyncChatbot.create(self.secure_1psid, self.secure_1psidts, proxy, timeout, model, impersonate) # Pass impersonate
         )

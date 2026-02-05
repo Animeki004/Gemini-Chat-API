@@ -27,6 +27,7 @@ setup(
         "pydantic>=2.0",
         "rich>=10.0",
         "requests>=2.20",
+        "browser-cookie3>=0.20.1",
     ],
     keywords="gemini google ai api client curl_cffi async",
     project_urls={
