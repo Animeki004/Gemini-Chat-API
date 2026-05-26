@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini API Tester (Dark Mode & Persistence)</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Marked.js for parsing markdown in bot responses -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* Custom scrollbar for the chat area (Dark theme) */
+        .chat-scroll::-webkit-scrollbar { width: 6px; }
+        .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+        .chat-scroll::-webkit-scrollbar-thumb { background-color: #475569; border-radius: 10px; }
+        .chat-scroll::-webkit-scrollbar-thumb:hover { background-color: #64748b; }
+        
+        /* Markdown styling inside chat bubbles */
+        .markdown-body p { margin-bottom: 0.5rem; }
+        .markdown-body pre { background-color: #0d0d0d; color: #e2e8f0; padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; margin-top: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #333333; }
+        .markdown-body code { font-family: monospace; background-color: #2d2d2d; padding: 0.1rem 0.3rem; border-radius: 0.25rem; }
+        .markdown-body pre code { background-color: transparent; padding: 0; }
+        .markdown-body a { color: #60a5fa; text-decoration: underline; }
+        .markdown-body strong { color: #f8fafc; font-weight: 600; }
+        .markdown-body ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.5rem; }
+        .markdown-body ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 0.5rem; }
+        
+        /* Blinking cursor for live typing effect */
+        .cursor-blink { animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+    </style>
+</head>
+<body class="bg-gray-900 h-screen flex flex-col md:flex-row text-gray-200 font-sans">
+
+    <!-- Sidebar: Configuration -->
+    <div class="w-full md:w-80 bg-gray-800 border-r border-gray-700 p-5 flex flex-col gap-4 shadow-md z-10">
+        <h1 class="text-xl font-bold text-gray-100 flex items-center gap-2">
+            <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+            API Tester
+        </h1>
+        
+        <div class="space-y-4 mt-4">
+            <div>
+                <label class="block text-sm font-semibold text-gray-300 mb-1">API Base URL</label>
+                <input type="text" id="apiUrl" value="http://localhost:8000" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-100 placeholder-gray-400 shadow-inner">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-semibold text-gray-300 mb-1">API Key</label>
+                <input type="password" id="apiKey" placeholder="sk-..." class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-100 placeholder-gray-400 shadow-inner">
+            </div>
+
+            <button type="button" onclick="fetchModels()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm shadow-md">
+                Fetch Authorized Models
+            </button>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-300 mb-1">Select Model</label>
+                <select id="modelSelect" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-100 disabled:opacity-50 disabled:bg-gray-800" disabled>
+                    <option value="">-- Fetch models first --</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="mt-auto space-y-2">
+            <p class="text-xs text-blue-400 text-center mb-2 font-medium" id="sessionStatus">Session: Managed by API Key</p>
+            <button type="button" onclick="clearChat()" class="w-full bg-gray-700 hover:bg-gray-600 text-gray-200 font-medium py-2 px-4 rounded-md transition-colors text-sm border border-gray-600">
+                Clear Local UI History
+            </button>
+            <p class="text-[10px] text-gray-500 text-center leading-tight">Note: Context is preserved by the backend until the API Key session expires.</p>
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="flex-1 flex flex-col h-screen bg-gray-900">
+        <!-- Messages Container -->
+        <div id="chatBox" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 chat-scroll bg-gray-900 pb-32">
+            <!-- Initial placeholder message -->
+            <div class="flex flex-col items-center justify-center h-full text-gray-500 space-y-4 opacity-80" id="emptyState">
+                <svg class="w-20 h-20 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                <p class="text-lg font-medium text-gray-400">Enter your API key and fetch models to start chatting.</p>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="border-t border-gray-700 bg-gray-800 p-4 shadow-lg">
+            <div class="max-w-4xl mx-auto flex gap-3 relative">
+                <textarea id="messageInput" rows="1" placeholder="Type your message here..." class="w-full pl-4 pr-12 py-3 bg-gray-700 border border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100 placeholder-gray-400 resize-none shadow-inner"></textarea>
+                
+                <button type="button" onclick="sendMessage()" id="sendBtn" class="absolute right-2 bottom-2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error/Notification Toast -->
+    <div id="toast" class="fixed bottom-24 right-4 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span id="toastMessage">Error message here</span>
+    </div>
+
+    <!-- Monaco Editor Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    <script>
+        // Store bubbles that loaded before Monaco finished initializing
+        let pendingMonacoElements = [];
+        let monacoThemeDefined = false;
+
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+        require(['vs/editor/editor.main'], function() {
+            // Define a true neutral dark theme (ChatGPT / VS Code style)
+            monaco.editor.defineTheme('modern-dark', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { background: '0d0d0d' }
+                ],
+                colors: {
+                    'editor.background': '#0d0d0d', // True dark/black like ChatGPT
+                    'editor.lineHighlightBackground': '#1a1a1a', // Neutral dark
+                    'editorLineNumber.foreground': '#858585', // Neutral gray
+                    'editorIndentGuide.background': '#333333', // Neutral gray
+                    'editor.selectionBackground': '#264f78' // Standard VS Code selection blue
+                }
+            });
+            monacoThemeDefined = true;
+
+            // Apply Monaco to any pending blocks once it's loaded
+            pendingMonacoElements.forEach(el => applyMonacoEditors(el));
+            pendingMonacoElements = [];
+        });
+
+        // Helper function for reliable copying inside restrictive iframes
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function applyMonacoEditors(container) {
+            // If Monaco isn't ready, push to queue
+            if (!window.monaco || !monacoThemeDefined) {
+                pendingMonacoElements.push(container);
+                return;
+            }
+            
+            const codeBlocks = container.querySelectorAll('pre code');
+            codeBlocks.forEach(codeEl => {
+                const pre = codeEl.parentElement;
+                
+                // Prevent initializing the same block twice
+                if (pre.classList.contains('monaco-initialized')) return;
+                pre.classList.add('monaco-initialized');
+
+                const code = codeEl.textContent || '';
+                let lang = 'plaintext';
+                codeEl.classList.forEach(cls => {
+                    if (cls.startsWith('language-')) lang = cls.replace('language-', '');
+                });
+
+                // Map standard markdown languages to Monaco recognized strings
+                const langMap = {
+                    'js': 'javascript', 'ts': 'typescript', 'py': 'python',
+                    'sh': 'shell', 'bash': 'shell', 'html': 'html',
+                    'css': 'css', 'json': 'json', 'md': 'markdown',
+                    'c': 'c', 'cpp': 'cpp', 'csharp': 'csharp',
+                    'java': 'java', 'go': 'go', 'rust': 'rust'
+                };
+                lang = langMap[lang] || lang;
+
+                // Dynamically scale the editor height based on lines of code
+                const lines = code.trim().split('\n').length;
+                const height = Math.min(Math.max(lines * 19 + 30, 80), 400); // 400px Max Height
+
+                // Create and style the wrapper container
+                const wrapperDiv = document.createElement('div');
+                wrapperDiv.style.position = 'relative';
+                wrapperDiv.style.width = '100%';
+                wrapperDiv.style.borderRadius = '0.5rem';
+                wrapperDiv.style.overflow = 'hidden';
+                wrapperDiv.style.marginTop = '1rem';
+                wrapperDiv.style.marginBottom = '1rem';
+                wrapperDiv.style.border = '1px solid #333333';
+
+                // Create Copy Button
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'absolute top-3 right-6 z-10 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-gray-300 px-2.5 py-1.5 rounded-md transition-colors text-xs flex items-center gap-1.5 border border-[#444] opacity-80 hover:opacity-100 shadow-sm cursor-pointer';
+                copyBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg> Copy`;
+
+                // Create Monaco container
+                const monacoDiv = document.createElement('div');
+                monacoDiv.style.height = height + 'px';
+                monacoDiv.style.width = '100%';
+
+                // Assemble structure
+                wrapperDiv.appendChild(copyBtn);
+                wrapperDiv.appendChild(monacoDiv);
+                
+                // Replace standard pre code with our custom wrapper
+                pre.parentNode.replaceChild(wrapperDiv, pre);
+
+                // Initialize the Editor natively with Modern Dark theme!
+                const editorInstance = monaco.editor.create(monacoDiv, {
+                    value: code.trim(),
+                    language: lang,
+                    theme: 'modern-dark',
+                    readOnly: true,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    fontSize: 14,
+                    fontFamily: 'monospace',
+                    padding: { top: 12, bottom: 12 }
+                });
+
+                // Attach Copy Functionality
+                copyBtn.onclick = () => {
+                    const textToCopy = editorInstance.getValue();
+                    fallbackCopyTextToClipboard(textToCopy);
+                    const originalHtml = copyBtn.innerHTML;
+                    copyBtn.innerHTML = `<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> <span class="text-emerald-400">Copied!</span>`;
+                    setTimeout(() => { copyBtn.innerHTML = originalHtml; }, 2000);
+                };
+            });
+        }
+    </script>
+
+    <script>
+        // --- State Management ---
+        let messageHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
+
+        // UI Elements
+        const apiUrlInput = document.getElementById('apiUrl');
+        const apiKeyInput = document.getElementById('apiKey');
+        const modelSelect = document.getElementById('modelSelect');
+        const chatBox = document.getElementById('chatBox');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const emptyState = document.getElementById('emptyState');
+
+        // Initial setup on page load
+        window.onload = () => {
+            const savedUrl = localStorage.getItem('apiUrl');
+            const savedKey = localStorage.getItem('apiKey');
+            const savedModel = localStorage.getItem('selectedModel');
+            const cachedModels = JSON.parse(localStorage.getItem('cachedModels')) || [];
+            
+            if (savedUrl) apiUrlInput.value = savedUrl;
+            if (savedKey) apiKeyInput.value = savedKey;
+
+            // RESTORE CACHED MODELS INSTANTLY SO NO REFETCH IS NEEDED ON RELOAD!
+            if (cachedModels.length > 0) {
+                modelSelect.innerHTML = '';
+                cachedModels.forEach(model => {
+                    const opt = document.createElement('option');
+                    opt.value = model.id;
+                    opt.textContent = model.id;
+                    modelSelect.appendChild(opt);
+                });
+                modelSelect.disabled = false;
+                
+                if (savedModel && cachedModels.some(m => m.id === savedModel)) {
+                    modelSelect.value = savedModel;
+                }
+            }
+            
+            // Auto-fetch in the background to ensure models are up to date
+            if (savedKey) {
+                fetchModels(true); 
+            }
+            
+            if (messageHistory.length > 0) {
+                emptyState.style.display = 'none';
+                messageHistory.forEach(msg => {
+                    appendMessage(msg.role, msg.content, true); 
+                });
+            }
+        };
+
+        apiUrlInput.addEventListener('input', () => localStorage.setItem('apiUrl', apiUrlInput.value));
+        apiKeyInput.addEventListener('input', () => localStorage.setItem('apiKey', apiKeyInput.value));
+        modelSelect.addEventListener('change', () => localStorage.setItem('selectedModel', modelSelect.value));
+
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight < 150 ? this.scrollHeight : 150) + 'px';
+            if(this.value.trim() === '') this.style.height = 'auto';
+        });
+
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent new line
+                sendMessage();
+            }
+        });
+
+        function saveChatState() {
+            localStorage.setItem('chatHistory', JSON.stringify(messageHistory));
+        }
+
+        function showToast(message, isError = true) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').textContent = message;
+            toast.className = `fixed bottom-24 right-4 px-4 py-3 rounded-lg shadow-xl transform transition-all duration-300 z-50 flex items-center gap-2 ${isError ? 'bg-red-600' : 'bg-emerald-600'} text-white font-medium`;
+            
+            setTimeout(() => { toast.classList.remove('translate-y-20', 'opacity-0'); }, 10);
+            setTimeout(() => { toast.classList.add('translate-y-20', 'opacity-0'); }, 4000);
+        }
+
+        async function fetchModels(silent = false) {
+            const baseUrl = apiUrlInput.value.replace(/\/+$/, '');
+            const apiKey = apiKeyInput.value.trim();
+
+            if (!apiKey) {
+                if(!silent) showToast("Please enter an API Key");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${baseUrl}/v1/models`, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${apiKey}` }
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(()=>({}));
+                    throw new Error(errData.detail || `HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Cache the models list so they survive a page reload
+                localStorage.setItem('cachedModels', JSON.stringify(data.data));
+                
+                modelSelect.innerHTML = '';
+                if (data.data && data.data.length > 0) {
+                    data.data.forEach(model => {
+                        const opt = document.createElement('option');
+                        opt.value = model.id;
+                        opt.textContent = model.id;
+                        modelSelect.appendChild(opt);
+                    });
+                    modelSelect.disabled = false;
+                    
+                    const savedModel = localStorage.getItem('selectedModel');
+                    if (savedModel && Array.from(modelSelect.options).some(o => o.value === savedModel)) {
+                        modelSelect.value = savedModel;
+                    } else {
+                        // Automatically select the first model and save it
+                        modelSelect.value = data.data[0].id;
+                        localStorage.setItem('selectedModel', data.data[0].id);
+                    }
+                    if (!silent) showToast("Models fetched successfully!", false);
+                } else {
+                    const opt = document.createElement('option');
+                    opt.textContent = "No models available";
+                    modelSelect.appendChild(opt);
+                }
+            } catch (error) {
+                if (!silent) showToast("Failed to fetch models: " + error.message);
+                if (error.message.includes("Failed to fetch") && !silent) {
+                    showToast("Network Error: Ensure your API server is running and CORS is enabled.");
+                }
+            }
+        }
+
+        function appendMessage(role, content, instantLoad = false) {
+            if (emptyState) emptyState.style.display = 'none';
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `flex w-full ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+
+            const bubbleDiv = document.createElement('div');
+            bubbleDiv.className = `max-w-[95%] md:max-w-[85%] rounded-2xl px-5 py-4 shadow-md ${
+                role === 'user' 
+                ? 'bg-blue-600 text-white rounded-br-sm' 
+                : 'bg-gray-800 border border-gray-700 text-gray-200 rounded-bl-sm markdown-body w-full overflow-hidden'
+            }`;
+
+            msgDiv.appendChild(bubbleDiv);
+            chatBox.appendChild(msgDiv);
+
+            if (role === 'user') {
+                bubbleDiv.textContent = content;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            } else {
+                if (instantLoad) {
+                    bubbleDiv.innerHTML = marked.parse(content);
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                    // Trigger Monaco Editor upgrade!
+                    applyMonacoEditors(bubbleDiv);
+                } else {
+                    let charIndex = 0;
+                    let currentText = "";
+                    
+                    const typeInterval = setInterval(() => {
+                        currentText += content.charAt(charIndex);
+                        bubbleDiv.innerHTML = marked.parse(currentText) + '<span class="inline-block w-2 h-4 ml-1 bg-gray-400 cursor-blink"></span>';
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                        
+                        charIndex++;
+                        if (charIndex >= content.length) {
+                            clearInterval(typeInterval);
+                            bubbleDiv.innerHTML = marked.parse(content); 
+                            chatBox.scrollTop = chatBox.scrollHeight;
+                            
+                            // Trigger Monaco Editor upgrade once typing finishes!
+                            applyMonacoEditors(bubbleDiv);
+                        }
+                    }, 12);
+                }
+            }
+        }
+
+        function addLoadingIndicator() {
+            const loadingId = 'loading-' + Date.now();
+            const msgDiv = document.createElement('div');
+            msgDiv.id = loadingId;
+            msgDiv.className = `flex w-full justify-start`;
+            
+            msgDiv.innerHTML = `
+                <div class="bg-gray-800 border border-gray-700 rounded-2xl rounded-bl-sm px-5 py-4 shadow-md flex items-center gap-3 text-gray-400">
+                    <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-sm font-medium">Connecting...</span>
+                </div>
+            `;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return loadingId;
+        }
+
+        function removeLoadingIndicator(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            const baseUrl = apiUrlInput.value.replace(/\/+$/, '');
+            const apiKey = apiKeyInput.value.trim();
+            const model = modelSelect.value;
+
+            if (!text) return;
+            if (!apiKey) return showToast("API Key is required");
+            if (!model) return showToast("Please fetch and select a model first");
+
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            sendBtn.disabled = true;
+
+            messageHistory.push({ role: "user", content: text });
+            saveChatState();
+            appendMessage('user', text, true);
+
+            const loadingId = addLoadingIndicator();
+
+            try {
+                const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: messageHistory,
+                        temperature: 0.7,
+                        max_tokens: 2000
+                    })
+                });
+
+                removeLoadingIndicator(loadingId);
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(()=>({}));
+                    messageHistory.pop(); 
+                    saveChatState();
+                    throw new Error(errData.detail || `HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const assistantMessage = data.choices[0].message.content;
+
+                messageHistory.push({ role: "assistant", content: assistantMessage });
+                saveChatState();
+
+                appendMessage('assistant', assistantMessage, false);
+
+            } catch (error) {
+                removeLoadingIndicator(loadingId);
+                showToast(error.message);
+                if (error.message.includes("Failed to fetch")) {
+                    showToast("Network Error: Ensure CORS is configured in FastAPI.");
+                }
+            } finally {
+                sendBtn.disabled = false;
+                messageInput.focus();
+            }
+        }
+
+        function clearChat() {
+            messageHistory = [];
+            localStorage.removeItem('chatHistory');
+            
+            chatBox.innerHTML = '';
+            
+            if (emptyState) {
+                emptyState.style.display = 'flex';
+                chatBox.appendChild(emptyState);
+            }
+        }
+    </script>
+</body>
+</html>
