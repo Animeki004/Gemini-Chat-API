@@ -5,7 +5,7 @@ from typing import Dict, Tuple, Union, Optional
 
 from curl_cffi import CurlError
 from curl_cffi.requests import AsyncSession
-from requests.exceptions import RequestException, HTTPError, Timeout # Added Timeout
+from requests.exceptions import RequestException, HTTPError, Timeout
 
 from rich.console import Console
 
@@ -60,18 +60,23 @@ async def upload_file(
             headers=Headers.UPLOAD.value # Pass headers directly
             # follow_redirects is handled automatically by curl_cffi
         ) as client:
+            
+            # FIXED: curl_cffi no longer supports `files=`. It requires `multipart=`.
+            # We pass a tuple containing (filename, file_content, mime_type) to ensure proper form boundary parsing.
             response = await client.post(
-                url=Endpoint.UPLOAD.value, # Use Endpoint enum
-                files={"file": file_content},
+                url=Endpoint.UPLOAD.value,
+                multipart={"file": ("upload.png", file_content, "image/png")},
             )
             response.raise_for_status() # Raises HTTPError for bad responses
             return response.text
+            
     except HTTPError as e:
         console.log(f"[red]HTTP error during file upload: {e.response.status_code} {e}[/red]")
         raise # Re-raise HTTPError
     except (RequestException, CurlError) as e: # Catch CurlError as well
         console.log(f"[red]Network error during file upload: {e}[/red]")
         raise # Re-raise other request errors
+
 
 def load_cookies(cookie_path: str) -> Tuple[str, str]:
     """
@@ -89,6 +94,7 @@ def load_cookies(cookie_path: str) -> Tuple[str, str]:
     try:
         with open(cookie_path, 'r', encoding='utf-8') as file: # Added encoding
             cookies = json.load(file)
+            
         # Handle potential variations in cookie names (case-insensitivity)
         session_auth1 = next((item['value'] for item in cookies if item['name'].upper() == '__SECURE-1PSID'), None)
         session_auth2 = next((item['value'] for item in cookies if item['name'].upper() == '__SECURE-1PSIDTS'), None)
@@ -97,6 +103,7 @@ def load_cookies(cookie_path: str) -> Tuple[str, str]:
              raise StopIteration("Required cookies (__Secure-1PSID or __Secure-1PSIDTS) not found.")
 
         return session_auth1, session_auth2
+        
     except FileNotFoundError:
         raise Exception(f"Cookie file not found at path: {cookie_path}")
     except json.JSONDecodeError:
