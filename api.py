@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Union, Dict, Any
 import time
 import uuid
+import base64
 
 import database as db
 from gemini_client.core import AsyncChatbot
@@ -122,10 +123,27 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
         raise HTTPException(status_code=403, detail=f"Your API key does not have access to model: {request.model}.")
         
     last_msg_content = request.messages[-1].content if request.messages else ""
+    image_bytes = None
+    prompt = ""
+
+    # Check for Vision Payload (List of Dictionaries)
     if isinstance(last_msg_content, list):
-        prompt = " ".join([item.get("text", "") for item in last_msg_content if item.get("type") == "text"])
+        for item in last_msg_content:
+            if item.get("type") == "text":
+                prompt += item.get("text", "") + " "
+            elif item.get("type") == "image_url":
+                img_data = item.get("image_url", {}).get("url", "")
+                if img_data.startswith("data:image"):
+                    try:
+                        b64_str = img_data.split("base64,")[1]
+                        image_bytes = base64.b64decode(b64_str)
+                    except Exception as e:
+                        print(f"Failed to decode base64 image: {e}")
+        prompt = prompt.strip()
+        if not prompt and image_bytes:
+            prompt = "Describe this image."
     else:
-        prompt = last_msg_content
+        prompt = str(last_msg_content)
     
     api_key_token = auth_data["key"]
 
@@ -147,7 +165,8 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             bot.response_id = session_data["rid"] or ""
             bot.choice_id = session_data["chid"] or ""
 
-        response = await bot.ask(prompt)
+        # Pass both prompt and potentially parsed image_bytes
+        response = await bot.ask(prompt, image=image_bytes)
         
         db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id)
         await bot.session.close()
