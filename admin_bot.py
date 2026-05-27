@@ -180,6 +180,36 @@ if bot:
         if not is_admin(message): return
         bot.reply_to(message, "Please send me the <code>database.db</code> or <code>telegram_sessions.json</code> file directly to update the system.", parse_mode="HTML")
 
+    @bot.message_handler(commands=['backup', 'download'])
+    def download_backup_files(message):
+        if not is_admin(message): return
+        
+        db_path = os.path.join(DATA_DIR, "database.db")
+        session_path = SESSION_FILE
+        
+        bot.send_message(message.chat.id, "📦 <b>Preparing your backup...</b>", parse_mode="HTML")
+        
+        files_sent = 0
+        
+        # Send Database
+        if os.path.exists(db_path):
+            with open(db_path, 'rb') as f:
+                bot.send_document(message.chat.id, f, caption="🗄 <b>database.db</b> Backup", parse_mode="HTML")
+            files_sent += 1
+        else:
+            bot.send_message(message.chat.id, "⚠️ <code>database.db</code> not found.", parse_mode="HTML")
+            
+        # Send Sessions
+        if os.path.exists(session_path):
+            with open(session_path, 'rb') as f:
+                bot.send_document(message.chat.id, f, caption="💬 <b>telegram_sessions.json</b> Backup", parse_mode="HTML")
+            files_sent += 1
+        else:
+            bot.send_message(message.chat.id, "⚠️ <code>telegram_sessions.json</code> not found.", parse_mode="HTML")
+            
+        if files_sent > 0:
+            bot.send_message(message.chat.id, "✅ <b>Backup complete!</b>", parse_mode="HTML")
+
     @bot.message_handler(content_types=['document'])
     def handle_file_upload(message):
         if not is_admin(message): return
@@ -213,7 +243,8 @@ if bot:
             "• /save &lt;name&gt; - Save current session\n"
             "• /sessions - View saved sessions\n"
             "• /load &lt;name&gt; - Resume a session\n"
-            "• /upload - Upload db or session files\n\n"
+            "• /upload - Upload db or session files\n"
+            "• /backup - Download database and session files\n"
             "• /settimeout &lt;key&gt; &lt;hours&gt; - Set session expiry time\n\n"
             "🧠 <b>Model Configuration</b>\n"
             "• /models - View available AI models\n"
