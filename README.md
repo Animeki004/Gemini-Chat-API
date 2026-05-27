@@ -1,382 +1,121 @@
-# Gemini Nexus System
+# 💠 Gemini Nexus System
 
-A deep-dive README for the Gemini-to-OpenAI proxy, Telegram admin layer, and browser-based API tester.
+<div align="center">
 
-> **Unofficial project.** This repository bridges Gemini Web UI behavior into an OpenAI-shaped API surface. It depends on valid Google session cookies, browser-like TLS impersonation, and a small SQLite-backed control plane.
+# The Gemini-to-OpenAI API Proxy
 
----
+### OpenAI-compatible Gemini backend with streaming, image input, API keys, and Telegram admin tools
 
-## What this project actually does
+![Python](https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-API%20Server-009688?style=for-the-badge&logo=fastapi)
+![Docker](https://img.shields.io/badge/Docker-Supported-2496ED?style=for-the-badge&logo=docker)
+![SQLite](https://img.shields.io/badge/SQLite-Integrated-4D7A97?style=for-the-badge&logo=sqlite)
+![Telegram](https://img.shields.io/badge/Telegram-Admin%20Bot-26A5E4?style=for-the-badge&logo=telegram)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
-This codebase turns Gemini Web UI into:
-
-- an OpenAI-compatible REST API (`/v1/chat/completions`, `/v1/models`)
-- a browser-fingerprint-aware Gemini client built on `curl_cffi`
-- a lightweight session and API-key database
-- a Telegram admin console for sessions, keys, cookies, and health checks
-- a static web tester that talks to the backend with OpenAI-style requests
-
-It supports:
-
-- normal chat completions
-- streaming SSE responses
-- image upload and image extraction
-- conversation persistence per API key
-- admin-only cookie repair endpoints
-- browser cookie extraction from installed Chromium/Firefox/Safari family browsers
-- a local HTML UI for manual testing
+</div>
 
 ---
 
-## High-level architecture
+## ✨ Overview
+
+Gemini Nexus turns the Gemini web experience into a clean OpenAI-style API server.
+
+It gives you:
+
+- `/v1/models` for model discovery
+- `/v1/chat/completions` for normal and streaming chat
+- image input through OpenAI-style multimodal messages
+- API key access control with per-key model limits
+- Telegram-based admin tools for keys, cookies, and health checks
+- browser cookie extraction for quick local setup
+- a dark web UI for testing requests from the browser
+
+---
+
+## 🚀 Key Features
+
+| Feature | What it does |
+|---|---|
+| 🔄 OpenAI-compatible API | Uses OpenAI request/response shapes |
+| ⚡ Streaming | Returns SSE chunks with partial assistant text |
+| 🖼️ Image support | Accepts `image_url` content blocks |
+| 🔐 API keys | Simple bearer-token access control |
+| 🧠 Model filtering | Keys can be limited to selected models |
+| 🍪 Cookie sync | Loads `__Secure-1PSID` and `__Secure-1PSIDTS` |
+| 🤖 Telegram admin bot | Manage keys, cookies, and sessions remotely |
+| 🐳 Docker ready | Easy container deployment |
+| 📁 SQLite storage | Stores cookies, keys, and session state |
+
+---
+
+## 🧠 How it works
 
 ```text
-OpenAI SDK / Custom Client / Web UI
-              │
-              ▼
-         FastAPI server
-     /v1/chat/completions
-           /v1/models
-     /v1/admin/* endpoints
-              │
-              ▼
-       AsyncChatbot core
-  - loads Google cookies
-  - fetches SNlM0e / PI9WOb
-  - posts to Gemini backend
-  - parses text + images
-              │
-              ▼
-   Google Gemini web endpoints
+OpenAI Client / Web UI / Your App
+            │
+            ▼
+      FastAPI server
+  /v1/models
+  /v1/chat/completions
+  /v1/admin/cookie_status
+  /v1/admin/cookies
+            │
+            ▼
+      AsyncChatbot core
+   cookies + tokens + model
+            │
+            ▼
+     Gemini web endpoints
 ```
 
-The backend uses `curl_cffi` sessions with browser impersonation instead of plain `requests`. The code also extracts and reuses Google cookies, and can rotate `__Secure-1PSIDTS` when available. The chat engine stores conversation state so the next request can continue from the last response. fileciteturn1file10turn1file17turn1file2
+The backend uses `curl_cffi` with browser impersonation, so requests look like a real browser session instead of a plain Python HTTP client. The Gemini client pulls the required bootstrapping tokens from the Gemini app page before sending chat requests. fileciteturn4file14turn4file6
 
 ---
 
-## Repository layout
+## 🧩 Supported Models
 
-| File | Role |
-|---|---|
-| `gemini_client/__init__.py` | Public package exports. |
-| `gemini_client/constants.py` | Cookie names, browser support, endpoint constants, and headers. |
-| `gemini_client/cookie_manager.py` | Auto-extracts target Google cookies from installed browsers. |
-| `gemini_client/core.py` | Main Gemini client, sync wrapper, async wrapper, streaming, parsing, session persistence. |
-| `gemini_client/enums.py` | Endpoint, header, and model definitions. |
-| `gemini_client/images.py` | Image objects plus save/download helpers. |
-| `gemini_client/utils.py` | File upload helper and cookie-file loader. |
-| `api.py` | FastAPI server and OpenAI-compatible routes. |
-| `database.py` | SQLite schema and helper functions for cookies, keys, and status flags. |
-| `admin_bot.py` | Telegram admin bot, session tools, cookie tools, and relay commands. |
-| `main.py` | Application bootstrap: DB init, cookie sync, bot thread, API server. |
-| `index.html` | Frontend API tester / chat UI. |
-| `test.py` | Small CLI example for local Gemini chat. |
-| `requirements.txt` | Python dependencies. |
-| `Dockerfile` | Container build and entrypoint. |
-| `cookies.json` | Local cookie cache generated by the extractor or startup sync. |
-| `README.md` | Existing project overview. |
-| `LICENSE` | License text. |
+The model list is defined in `gemini_client.enums.Model`. The currently shipped model names include:
 
----
-
-## Package surface exported by `gemini_client`
-
-`gemini_client.__init__` exposes the main end-user API:
-
-- `Chatbot`
-- `AsyncChatbot`
-- `Model`
-- `Endpoint`
-- `Headers`
-- `Image`
-- `WebImage`
-- `GeneratedImage`
-- `upload_file`
-- `load_cookies` fileciteturn1file0turn1file10turn1file14turn1file15turn1file5
-
-That means a user can import the package and immediately work with:
-- synchronous chat
-- asynchronous chat
-- image saving
-- cookie loading
-- manual upload helpers
-
----
-
-## File-by-file analysis
-
-### `constants.py`
-
-This file defines the low-level reference data used across the package:
-
-- a full cookie-name enum for Google-related cookies
-- `TARGET_COOKIES`, which currently focuses on `__Secure-1PSID` and `__Secure-1PSIDTS`
-- browser extraction backends for `browser_cookie3`
-- Gemini-related base URLs and a resumable upload endpoint
-- default request headers for chat and upload flows
-- a mapping for Replit-style language file names
-- a country/language dictionary used by the project for locale-related work
-
-The browser list includes Chrome, Chromium, Opera, Opera GX, Brave, Edge, Vivaldi, Firefox, LibreWolf, and Safari. fileciteturn1file10
-
-### `cookie_manager.py`
-
-`CookieExtractor` scans supported browsers, tries each browser backend, and keeps the first browser that yields a reasonable cookie jar. It then filters the jar down to the target Google cookies, normalizing names so underscore and hyphen variants compare cleanly. When `save_to_disk=True`, it writes a compact JSON file containing only the extracted cookie name/value pairs. fileciteturn1file2turn1file10
-
-### `enums.py`
-
-This file holds the hard-coded Gemini endpoints and model metadata:
-
-- `Endpoint.INIT` → the Gemini app page used to fetch the bootstrapping tokens
-- `Endpoint.GENERATE` → the `StreamGenerate` endpoint used for chat
-- `Endpoint.ROTATE_COOKIES` → the Google cookie-rotation endpoint
-- `Endpoint.UPLOAD` → the resumable upload base endpoint
-
-The model enum currently includes:
-
-- `unspecified`
 - `gemini-3.1-flash-lite`
 - `gemini-3.5-flash`
 - `gemini-3.1-pro`
 - `gemini-3.0-flash`
-- `gemini-3.0-flash-thinking`
-
-Each model can carry its own request-header extension payload, and `Model.from_name()` resolves a user-supplied model string back to the enum member. fileciteturn1file10
-
-### `utils.py`
-
-Two helpers live here:
-
-- `upload_file(...)`: performs a resumable upload using `curl_cffi`, first starting the upload session, then posting the file content to the returned upload URL
-- `load_cookies(...)`: reads a `cookies.json` file and extracts `__Secure-1PSID` and `__Secure-1PSIDTS`
-
-The upload helper supports byte content or file paths and can optionally route through a proxy. fileciteturn1file14turn1file15
-
-### `images.py`
-
-The image layer provides three classes:
-
-- `Image`: a downloadable image object with `save()`
-- `WebImage`: a semantic subclass for search-result images
-- `GeneratedImage`: a subclass that requires a cookie dictionary and reuses the parent save flow
-
-`Image.save()` derives a filename from the URL if one is not given, sanitizes invalid characters, applies a 255-character filename guard, downloads through `curl_cffi`, and writes the file locally. `GeneratedImage.save()` creates a timestamp-based filename when needed and then delegates to the parent implementation. fileciteturn1file5
-
-### `core.py`
-
-This is the heart of the package.
-
-`Chatbot` is a synchronous wrapper around `AsyncChatbot`. It creates or reuses an event loop, loads cookies from disk or from browser extraction, and then instantiates the async client. It exposes:
-- `ask()`
-- `ask_stream()`
-- `save_conversation()`
-- `load_conversations()`
-- `load_conversation()`
-
-`AsyncChatbot` is the real engine. Its important responsibilities are:
-
-- build a browser-like `AsyncSession` with cookies and impersonation
-- fetch `SNlM0e` and `PI9WOb` from the Gemini start page
-- optionally rotate cookies via `RotateCookies`
-- persist conversation state
-- upload images before prompting
-- build Gemini request payloads
-- parse the nested Gemini response format
-- extract text, images, conversation IDs, response IDs, and choice IDs
-- stream delta chunks for live UIs
-- return structured dictionaries for both streaming and non-streaming use cases
-
-The non-stream path returns a dictionary with:
-- `content`
-- `conversation_id`
-- `response_id`
-- `choice_id`
-- `factualityQueries`
-- `textQuery`
-- `choices`
-- `images`
-- `error`
-
-The stream path yields small dictionaries containing the accumulated content, the live delta chunk, IDs for persistence, images, and an error flag. fileciteturn1file17turn1file2
-
-### `api.py`
-
-This is the OpenAI-style HTTP layer. It mounts FastAPI with permissive CORS and defines the public request models:
-
-- `Message`
-- `ChatCompletionRequest`
-- `CookieUpdateRequest`
-
-It also defines two auth guards:
-- `verify_api_key()`
-- `verify_admin_key()`
-
-Both read key details from SQLite, reject inactive keys, and the admin guard requires the stored `role` to be `admin`. fileciteturn1file17turn1file16turn1file5
-
-### `database.py`
-
-This file initializes and manages the SQLite database.
-
-Tables:
-- `cookies`
-- `api_keys`
-- `system_status`
-
-Notable columns:
-- `api_keys.allowed_models`
-- `api_keys.conversation_id`
-- `api_keys.response_id`
-- `api_keys.choice_id`
-- `api_keys.last_used`
-- `api_keys.timeout_hours`
-- `api_keys.role`
-- `system_status.needs_update`
-- `system_status.last_alert`
-
-The helper set supports:
-- cookie updates and reads
-- API key creation
-- key listing
-- key revocation
-- key lookup
-- key session persistence
-- timeout management
-- the auto-heal flag
-- flood-control timing for admin alerts. fileciteturn1file16turn1file17
-
-### `admin_bot.py`
-
-This is the Telegram control plane.
-
-It handles:
-- `/chat` and `/end`
-- session save/load/list
-- model listing and model switching
-- API key generation (`/newkey`, `/newadminkey`)
-- key listing, timeout edits, and revocation
-- cookie replacement with guided step-by-step prompts
-- health checks
-- file upload/download for `database.db` and `telegram_sessions.json`
-- user DM relay to the admin
-- admin reply forwarding back to the original user
-- manual `/send` to any chat ID
-
-It also includes robust Markdown-to-Telegram HTML formatting helpers and a chunking helper that keeps Telegram messages within size limits. The bot can send a distress alert to the admin if Gemini authentication appears broken. fileciteturn1file3turn1file9turn1file11
-
-### `main.py`
-
-Startup sequence:
-
-1. load `.env`
-2. initialize SQLite
-3. sync cookies from `cookies.json` into the DB if that file exists
-4. start the Telegram bot in a background thread
-5. start Uvicorn on `PORT` or `8000`
-
-On Windows, it switches the event-loop policy to `WindowsSelectorEventLoopPolicy` to keep `curl_cffi` happy. fileciteturn1file12
-
-### `index.html`
-
-This is a standalone browser client, not a server-side template.
-
-It provides:
-- API base URL input
-- API key input
-- streaming toggle
-- model selector
-- image attachment preview
-- markdown rendering with `marked.js`
-- message editing
-- streaming token display
-- a polished dark UI built with Tailwind
-
-It sends OpenAI-shaped payloads to `/v1/chat/completions` and renders either streaming SSE chunks or the final response object. fileciteturn1file4turn1file8turn1file12turn1file19
-
-### `test.py`
-
-A tiny terminal demo:
-- creates `Chatbot(...)`
-- asks for a prompt
-- optionally asks for an image path
-- prints the assistant reply
-
-This is the simplest way to verify the core client without the web server. fileciteturn1file15
-
-### `requirements.txt`
-
-The runtime dependency set is intentionally small:
-
-- `curl_cffi`
-- `pydantic`
-- `rich`
-- `requests`
-- `browser-cookie3`
-- `fastapi`
-- `uvicorn`
-- `python-multipart`
-- `pyTelegramBotAPI`
-- `python-dotenv` fileciteturn1file14
-
-### `Dockerfile`
-
-The container is straightforward:
-
-- Python 3.11 slim base
-- installs requirements
-- creates `/app/data`
-- copies the repository
-- exposes port `8000`
-- runs `python main.py`
-
-### `cookies.json`
-
-This file is a local cookie cache containing values for:
-- `__Secure-1PSID`
-- `__Secure-1PSIDTS`
-
-It is treated as a runtime secret and should not be committed to public source control. The startup script can read it and sync it into the database automatically. fileciteturn1file12turn1file14
-
-### `README.md`
-
-The existing README already describes the project as an OpenAI-compatible Gemini proxy with cookie automation, Telegram administration, image support, Docker deployment, and auto-healing cookie refresh logic. This rewritten README goes deeper into the code-level behavior and corrects the route documentation to match the actual implementation. fileciteturn1file1turn1file6turn1file13
+- `gemini-3.0-flash-thinking` fileciteturn4file0
 
 ---
 
-## API reference
+## 🔐 Authentication
 
-### Authentication
-
-All public HTTP routes use a bearer token:
+Every API call uses a bearer token:
 
 ```http
-Authorization: Bearer sk-...
+Authorization: Bearer sk-xxxxxxxx
 ```
 
-Key validation looks up the token in SQLite. Disabled keys are rejected with `401`, and model access is limited by the `allowed_models` field. Admin-only routes additionally require the stored role to be `admin`. fileciteturn1file17turn1file16
+The token is checked against the SQLite `api_keys` table. Each key can be active or revoked, and each key can also be restricted to specific model names. Admin keys use the `role = admin` flag and unlock the cookie repair endpoints. fileciteturn4file4turn3file11turn4file11
+
+---
+
+## 📡 API Reference
 
 ### `GET /v1/models`
 
-Returns the model list in an OpenAI-compatible shape.
+Returns the model list available to the current API key.
 
-Behavior:
-- reads the caller’s API key
-- checks whether the key is limited to a model subset
-- skips `unspecified`
-- returns each allowed model as an object with `id`, `object`, `created`, `owned_by`, `permission`, `root`, and `parent`
-
-Example response shape:
+If the key is restricted, only allowed models are returned. The response matches the OpenAI model-list pattern:
 
 ```json
 {
   "object": "list",
   "data": [
     {
-      "id": "gemini-3.1-flash-lite",
+      "id": "gemini-3.5-flash",
       "object": "model",
       "created": 1710000000,
       "owned_by": "google",
       "permission": [],
-      "root": "gemini-3.1-flash-lite",
+      "root": "gemini-3.5-flash",
       "parent": null
     }
   ]
@@ -385,181 +124,141 @@ Example response shape:
 
 ### `POST /v1/chat/completions`
 
-This is the main inference route.
+This is the main chat endpoint.
 
-Accepted request fields include:
-- `model`
-- `messages`
-- `temperature`
-- `top_p`
-- `n`
-- `stream`
-- `stop`
-- `max_tokens`
-- `max_completion_tokens`
-- `presence_penalty`
-- `frequency_penalty`
-- `logit_bias`
-- `user`
-- `seed`
-- `response_format`
-- `tools`
-- `tool_choice`
-
-The request model tolerates extra fields and ignores unknown fields, which makes it more forgiving for OpenAI clients. Internally, the handler mainly uses `model`, `messages`, and `stream`; the rest are accepted for compatibility. fileciteturn1file17turn1file16
-
-Request content handling:
-
-- plain text messages are passed through as strings
-- multimodal payloads can be lists of content items
-- `type: "text"` items are concatenated into the prompt
-- `type: "image_url"` items support `data:image/...;base64,...` URLs
-- if the prompt is empty but an image exists, the code falls back to `Describe this image.`
-
-Response modes:
-
-**Streaming (`stream: true`)**
-- returns `text/event-stream`
-- emits `data: {chunk_json}`
-- each chunk contains `choices[0].delta.content`
-- image references are emitted in `delta.images` when present
-- final chunk uses `finish_reason: "stop"`
-- stream ends with `data: [DONE]`
-
-**Non-streaming (`stream: false`)**
-- returns a regular JSON object
-- response shape matches OpenAI-style chat completions
-- assistant content is flattened into a plain string
-- image URLs are normalized into simple `{url, title}` objects
-
-Session persistence:
-- after each response, the handler stores conversation IDs back into the DB under the API key
-- the next request with the same key can continue the same thread
-
-Error behavior:
-- if no cookies are available, the route returns `500`
-- if the requested model is not allowed, the route returns `403`
-- if Gemini-like auth errors are detected, the code flips the `needs_update` flag and can trigger Telegram admin alerting. fileciteturn1file17turn1file16turn1file10turn1file12
-
-### `GET /v1/admin/cookie_status`
-
-Admin-only route.
-
-Returns:
-
-```json
-{"needs_update": true}
-```
-
-or
-
-```json
-{"needs_update": false}
-```
-
-This endpoint is meant for a Chrome-extension or other admin tool that polls for cookie intervention. fileciteturn1file17
-
-### `POST /v1/admin/cookies`
-
-Admin-only route.
-
-Body:
+It accepts a request body like:
 
 ```json
 {
-  "psid": "string",
-  "psidts": "string"
+  "model": "gemini-3.5-flash",
+  "messages": [
+    { "role": "user", "content": "Hello!" }
+  ],
+  "stream": false
 }
 ```
 
-Behavior:
-- updates the stored cookies in SQLite
-- clears the `needs_update` flag
-- optionally sends a Telegram confirmation to the admin
+The backend reads the last message in the conversation and forwards it to Gemini. It also supports multimodal payloads where the last message `content` is an array of blocks. If a block contains `type: "text"`, it is appended to the prompt. If a block contains `type: "image_url"` with a `data:image/...;base64,...` URL, the image is decoded and sent with the request. fileciteturn4file9turn4file12turn4file18
 
-This is the auto-heal path used when fresh cookie values are pushed back into the server. fileciteturn1file17turn1file16
+#### Text-only request
 
----
+```json
+{
+  "model": "gemini-3.1-flash-lite",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Write a short Python function that adds two numbers."
+    }
+  ]
+}
+```
 
-## Telegram admin commands
+#### Image request
 
-The bot-side command surface is much broader than the HTTP API.
+```json
+{
+  "model": "gemini-3.5-flash",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        { "type": "text", "text": "Describe this image in detail." },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "data:image/png;base64,AAAA..."
+          }
+        }
+      ]
+    }
+  ]
+}
+```
 
-### Chat and session flow
-- `/chat` starts an interactive chat mode
-- `/end` ends it
-- `/save <name>` stores the current session
-- `/sessions` lists saved sessions
-- `/load <name>` restores a saved session
+#### Streaming request
 
-### Model control
-- `/models` lists available models
-- `/setmodel <name>` changes the active model for the admin session
+Set `"stream": true` to receive Server-Sent Events. The stream sends `chat.completion.chunk` objects with partial `delta.content`, and it can also include `delta.images` when images are discovered during generation. The stream finishes with a final chunk and a `[DONE]` marker. fileciteturn4file16turn4file18
 
-### API key management
-- `/newadminkey [name]` creates an admin key
-- `/newkey [name]` creates a standard key and then asks for allowed models
-- `/listkeys` shows all keys, status, model scope, timeout, and role
-- `/settimeout <key_name> <hours>` updates a key’s session timeout
-- `/revoke <key>` disables a key
+### Response shape
 
-### Cookie and health management
-- `/setcookies` updates the stored Gemini cookies
-- `/health` checks whether Gemini is reachable for the current model
-- `/backup` or `/download` sends `database.db` and `telegram_sessions.json`
-- `/upload` accepts updated `database.db` or `telegram_sessions.json` files
+Non-stream responses follow the OpenAI pattern:
 
-### Relay tools
-- non-admin private messages are forwarded to the admin
-- replying to the forwarded message sends a message back to the original user
-- `/send <chat_id> <message>` sends a manual message to any chat ID. fileciteturn1file3turn1file9turn1file11
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "created": 1710000000,
+  "model": "gemini-3.5-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Answer text",
+        "images": []
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
 
----
+Streaming responses use:
 
-## Data model
-
-### `cookies`
-Stores the current Google auth cookie pair:
-- `psid`
-- `psidts`
-
-### `api_keys`
-Stores API access control and session continuity:
-- `key`
-- `name`
-- `active`
-- `allowed_models`
-- `conversation_id`
-- `response_id`
-- `choice_id`
-- `last_used`
-- `timeout_hours`
-- `role`
-
-### `system_status`
-Stores server-wide flags:
-- `needs_update`
-- `last_alert`
-
-That means the server can signal external automation when cookies need intervention, and it can rate-limit repeat alerts. fileciteturn1file16turn1file17
-
----
-
-## How chat requests flow
-
-1. The client posts an OpenAI-shaped payload to `/v1/chat/completions`.
-2. The API checks the bearer token.
-3. The DB decides whether the requested model is allowed.
-4. The code loads Google cookies from SQLite.
-5. `AsyncChatbot.create()` fetches Gemini bootstrap tokens.
-6. The prompt and optional image are converted into Gemini’s internal request structure.
-7. Gemini returns text and possibly image references.
-8. The API returns OpenAI-shaped JSON or SSE chunks.
-9. Conversation IDs are saved back into the API-key record. fileciteturn1file17turn1file16turn1file12
+```text
+data: {"object":"chat.completion.chunk", ...}
+data: [DONE]
+```
 
 ---
 
-## Usage examples
+## 🛠️ Admin endpoints
+
+These endpoints are protected with admin API keys.
+
+### `GET /v1/admin/cookie_status`
+
+Used by the extension or admin tooling to check whether cookie refresh is needed.
+
+### `POST /v1/admin/cookies`
+
+Accepts:
+
+```json
+{
+  "psid": "value",
+  "psidts": "value"
+}
+```
+
+It stores the new cookies in SQLite and clears the update flag. The endpoint also notifies the Telegram admin bot when a refresh succeeds. fileciteturn4file4turn4file9turn3file11
+
+---
+
+## 🖼️ Image input and output
+
+The API supports image input in the request body and image metadata in the response.
+
+On input, send a multimodal message array with `text` and `image_url` blocks. On output, the non-streaming response includes an `images` field inside `choices[0].message`, while the streaming path can emit image entries inside `choices[0].delta`. The browser UI also shows image previews and carousels. fileciteturn4file18turn4file19turn4file8
+
+---
+
+## 💻 Examples
+
+### cURL
+
+```bash
+curl http://localhost:8000/v1/chat/completions   -H "Content-Type: application/json"   -H "Authorization: Bearer sk-your-api-key"   -d '{
+    "model": "gemini-3.5-flash",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Explain quantum computing in one paragraph."
+      }
+    ]
+  }'
+```
 
 ### Python
 
@@ -572,9 +271,9 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="gemini-3.1-flash-lite",
+    model="gemini-3.5-flash",
     messages=[
-        {"role": "user", "content": "Write a Fibonacci script"}
+        {"role": "user", "content": "Write a Fibonacci script."}
     ]
 )
 
@@ -588,103 +287,138 @@ import OpenAI from "openai";
 
 const client = new OpenAI({
   apiKey: "sk-your-api-key",
-  baseURL: "http://localhost:8000/v1"
+  baseURL: "http://localhost:8000/v1",
 });
 
 const response = await client.chat.completions.create({
-  model: "gemini-3.1-flash-lite",
+  model: "gemini-3.5-flash",
   messages: [
-    { role: "user", content: "Hello Gemini" }
+    { role: "user", content: "Hello from JavaScript" }
   ]
 });
 
 console.log(response.choices[0].message.content);
 ```
 
-### Local CLI client
+### Python with image input
 
 ```python
-from gemini_client import Chatbot, Model
-
-bot = Chatbot(cookie_path="cookies.json", model=Model.G_3_1_FLASH_LITE)
-print(bot.ask("Hello"))
+response = client.chat.completions.create(
+    model="gemini-3.5-flash",
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What is in this image?"},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "data:image/png;base64,AAAA..."
+                    }
+                }
+            ]
+        }
+    ]
+)
 ```
 
 ---
 
-## Installation
+## 🚀 Quick start
 
-### 1) Create a virtual environment
-
-```bash
-python -m venv .venv
-```
-
-### 2) Install dependencies
+### 1) Install
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3) Configure environment variables
+### 2) Add environment variables
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token
-ADMIN_ID=your_telegram_id
+ADMIN_ID=your_telegram_user_id
 PORT=8000
 ```
 
-### 4) Start the server
+### 3) Run
 
 ```bash
 python main.py
 ```
 
-On first launch, the app initializes the database, syncs cookies from `cookies.json` if present, starts the Telegram bot in a background thread, and runs Uvicorn on the configured port. fileciteturn1file12
-
 ---
 
-## Docker
-
-Build:
+## 🐳 Docker
 
 ```bash
 docker build -t gemini-nexus .
-```
-
-Run:
-
-```bash
-docker run -d \
-  -p 8000:8000 \
-  -v $(pwd)/data:/app/data \
-  --env-file .env \
-  --name gemini-nexus \
-  gemini-nexus
+docker run -d   -p 8000:8000   -v $(pwd)/data:/app/data   --env-file .env   --name gemini-nexus   gemini-nexus
 ```
 
 ---
 
-## Security and operational notes
+## 🤖 Telegram admin commands
 
-- The project depends on real Google cookies.
-- `cookies.json` and the SQLite database are sensitive runtime artifacts.
-- Model access is enforced per API key.
-- Admin-only routes are blocked unless the API key is marked `admin`.
-- Cookie failures can trigger the `needs_update` flag and a Telegram alert.
-- The project uses TLS/browser impersonation through `curl_cffi`, not a standard HTTP client. fileciteturn1file17turn1file16turn1file12turn1file10
+Common admin commands include:
 
----
-
-## Limitations worth knowing
-
-- The OpenAI compatibility layer is focused on chat completions and model listing.
-- Fields such as `tools`, `tool_choice`, and advanced OpenAI options are accepted for compatibility, but the current handler mainly uses the core chat/message fields.
-- The `/v1/admin/*` routes are separate from the Telegram `/health` command.
-- The backend is tightly coupled to the current Gemini web-response structure, so upstream changes may require parser updates. fileciteturn1file16turn1file17turn1file12
+- `/newkey` — create a normal API key
+- `/newadminkey` — create an admin key
+- `/listkeys` — list stored keys
+- `/settimeout` — set key timeout
+- `/revoke` — revoke a key
+- `/setcookies` — update the Google cookies
+- `/health` — test whether Gemini is reachable
+- `/backup` — download database and session backups fileciteturn4file11turn4file17
 
 ---
 
-## License and attribution
+## 🖥️ Web UI
 
-The repository includes a license file and an explicit “unofficial / not affiliated” disclaimer. This README keeps the same practical framing: it describes what the code does, how the parts fit together, and where the boundaries are. fileciteturn1file13turn1file1
+The included `index.html` page gives you:
+
+- a model dropdown
+- API URL and API key inputs
+- a stream toggle
+- image attachment
+- markdown rendering
+- a clean dark chat layout
+
+It sends requests to `/v1/models` and `/v1/chat/completions` using the same OpenAI-shaped payload format as the SDK examples. fileciteturn4file1turn4file8turn3file16
+
+---
+
+## 📂 Project structure
+
+```text
+.
+├── admin_bot.py
+├── api.py
+├── database.py
+├── index.html
+├── main.py
+├── requirements.txt
+├── test.py
+└── gemini_client/
+    ├── __init__.py
+    ├── constants.py
+    ├── cookie_manager.py
+    ├── core.py
+    ├── enums.py
+    ├── images.py
+    └── utils.py
+```
+
+---
+
+## ⚠️ Notes
+
+- This project depends on valid Google session cookies.
+- The API key system is local and SQLite-backed.
+- Streaming and image handling are supported in both the backend and the browser UI.
+- The project is unofficial and not affiliated with Google or OpenAI.
+
+---
+
+## 📜 License
+
+MIT License.
