@@ -1,500 +1,567 @@
-# 💠 Gemini Nexus System
+# Gemini Nexus System
 
-<div align="center">
+A deep-dive README for the Gemini-to-OpenAI proxy, Telegram admin layer, and browser-based API tester.
 
-# The Gemini-to-OpenAI API Proxy
-
-### Advanced Stealth Reverse Proxy for Google Gemini Web UI
-
-Convert Google's Gemini Web Interface into a fully OpenAI-compatible REST API with persistent conversations, Telegram administration, TLS impersonation, image support, and production-grade scalability.
-
-<br>
-
-![Python](https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python)
-![FastAPI](https://img.shields.io/badge/FastAPI-Production-green?style=for-the-badge&logo=fastapi)
-![Docker](https://img.shields.io/badge/Docker-Supported-2496ED?style=for-the-badge&logo=docker)
-![SQLite](https://img.shields.io/badge/SQLite-Integrated-lightgrey?style=for-the-badge&logo=sqlite)
-![Telegram](https://img.shields.io/badge/Telegram-Bot_API-26A5E4?style=for-the-badge&logo=telegram)
-![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
-
-</div>
+> **Unofficial project.** This repository bridges Gemini Web UI behavior into an OpenAI-shaped API surface. It depends on valid Google session cookies, browser-like TLS impersonation, and a small SQLite-backed control plane.
 
 ---
 
-# 📚 Table of Contents
+## What this project actually does
 
-- [✨ Overview](#-overview)
-- [🚀 Key Features](#-key-features)
-- [🧠 Deep Architecture](#-deep-architecture)
-- [⚡ How Gemini Nexus Works](#-how-gemini-nexus-works)
-- [🔐 Authentication System](#-authentication-system)
-- [🍪 Cookie Auto Extraction](#-cookie-auto-extraction)
-- [🔄 Auto Cookie Rotation](#-auto-cookie-rotation)
-- [🧬 OpenAI Compatibility Layer](#-openai-compatibility-layer)
-- [🖼️ Multimodal Support](#️-multimodal-support)
-- [📋 Requirements](#-requirements)
-- [🚀 Installation Guide](#-installation-guide)
-- [🐳 Docker Deployment](#-docker-deployment)
-- [⚙️ Environment Variables](#️-environment-variables)
-- [🤖 Telegram Bot System](#-telegram-bot-system)
-- [📡 API Examples](#-api-examples)
-- [💻 Web UI](#-web-ui)
-- [📂 Repository Structure](#-repository-structure)
-- [🛡️ Security & Stealth](#️-security--stealth)
-- [📈 Performance](#-performance)
-- [🧩 Technology Stack](#-technology-stack)
-- [⚠️ Disclaimer](#️-disclaimer)
-- [📜 License](#-license)
+This codebase turns Gemini Web UI into:
+
+- an OpenAI-compatible REST API (`/v1/chat/completions`, `/v1/models`)
+- a browser-fingerprint-aware Gemini client built on `curl_cffi`
+- a lightweight session and API-key database
+- a Telegram admin console for sessions, keys, cookies, and health checks
+- a static web tester that talks to the backend with OpenAI-style requests
+
+It supports:
+
+- normal chat completions
+- streaming SSE responses
+- image upload and image extraction
+- conversation persistence per API key
+- admin-only cookie repair endpoints
+- browser cookie extraction from installed Chromium/Firefox/Safari family browsers
+- a local HTML UI for manual testing
 
 ---
 
-# ✨ Overview
+## High-level architecture
 
-Gemini Nexus is a high-performance stealth proxy that converts Google's Gemini Web UI into a fully OpenAI-compatible REST API server.
+```text
+OpenAI SDK / Custom Client / Web UI
+              │
+              ▼
+         FastAPI server
+     /v1/chat/completions
+           /v1/models
+     /v1/admin/* endpoints
+              │
+              ▼
+       AsyncChatbot core
+  - loads Google cookies
+  - fetches SNlM0e / PI9WOb
+  - posts to Gemini backend
+  - parses text + images
+              │
+              ▼
+   Google Gemini web endpoints
+```
 
-The project is designed to bridge the gap between:
-
-- Google's free Gemini models
-- OpenAI SDK ecosystem
-- LangChain
-- AutoGPT
-- AI Agents
-- Telegram bots
-- Web dashboards
-- Custom applications
-
-Unlike traditional wrappers, Gemini Nexus is built as a complete production architecture.
-
-It includes:
-
-- OpenAI schema translation
-- Session persistence
-- Cookie automation
-- TLS impersonation
-- Telegram administration
-- SQLite conversation memory
-- Streaming support
-- Image handling
-- Docker deployment
-- Auto-healing cookie refresh systems
+The backend uses `curl_cffi` sessions with browser impersonation instead of plain `requests`. The code also extracts and reuses Google cookies, and can rotate `__Secure-1PSIDTS` when available. The chat engine stores conversation state so the next request can continue from the last response. fileciteturn1file10turn1file17turn1file2
 
 ---
 
-# 🚀 Key Features
+## Repository layout
 
-| Feature | Description |
+| File | Role |
 |---|---|
-| 🔄 OpenAI Compatibility | Full support for `/v1/chat/completions` and `/v1/models` |
-| ⚡ Streaming Responses | Real-time token streaming support |
-| 🧠 Stateful Conversations | Persistent memory with conversation tracking |
-| 🍪 Cookie Automation | Browser cookie extraction and rotation |
-| 🤖 Telegram Admin Bot | Remote server management |
-| 🖼️ Image Upload Support | Upload images directly to Gemini |
-| 💻 Monaco Editor UI | Professional browser interface |
-| 🐳 Docker Support | Containerized deployment |
-| 🔐 API Key Management | Multi-user API authentication |
-| 🛡️ TLS Impersonation | Chrome-grade fingerprint spoofing |
-| 📡 Proxy Support | SOCKS5 and HTTP proxy support |
-| 🏥 Auto-Healing System | Automatic cookie refresh endpoints |
-| 📁 SQLite Database | Persistent lightweight storage |
-| 🌐 Multi-Model Support | Gemini Flash / Pro / Thinking models |
+| `gemini_client/__init__.py` | Public package exports. |
+| `gemini_client/constants.py` | Cookie names, browser support, endpoint constants, and headers. |
+| `gemini_client/cookie_manager.py` | Auto-extracts target Google cookies from installed browsers. |
+| `gemini_client/core.py` | Main Gemini client, sync wrapper, async wrapper, streaming, parsing, session persistence. |
+| `gemini_client/enums.py` | Endpoint, header, and model definitions. |
+| `gemini_client/images.py` | Image objects plus save/download helpers. |
+| `gemini_client/utils.py` | File upload helper and cookie-file loader. |
+| `api.py` | FastAPI server and OpenAI-compatible routes. |
+| `database.py` | SQLite schema and helper functions for cookies, keys, and status flags. |
+| `admin_bot.py` | Telegram admin bot, session tools, cookie tools, and relay commands. |
+| `main.py` | Application bootstrap: DB init, cookie sync, bot thread, API server. |
+| `index.html` | Frontend API tester / chat UI. |
+| `test.py` | Small CLI example for local Gemini chat. |
+| `requirements.txt` | Python dependencies. |
+| `Dockerfile` | Container build and entrypoint. |
+| `cookies.json` | Local cookie cache generated by the extractor or startup sync. |
+| `README.md` | Existing project overview. |
+| `LICENSE` | License text. |
 
 ---
 
-# 🧠 Deep Architecture
+## Package surface exported by `gemini_client`
 
-```text
-                           ┌────────────────────┐
-                           │ OpenAI Applications│
-                           │ LangChain / SDKs   │
-                           └─────────┬──────────┘
-                                     │
-                                     ▼
-                     ┌────────────────────────────┐
-                     │      FastAPI Backend       │
-                     │  OpenAI-Compatible Routes  │
-                     └─────────────┬──────────────┘
-                                   │
-                                   ▼
-                     ┌────────────────────────────┐
-                     │     Gemini Core Engine     │
-                     │ Conversation Management    │
-                     └─────────────┬──────────────┘
-                                   │
-                                   ▼
-                     ┌────────────────────────────┐
-                     │        curl_cffi           │
-                     │  TLS Browser Impersonation │
-                     └─────────────┬──────────────┘
-                                   │
-                                   ▼
-                     ┌────────────────────────────┐
-                     │    Google Gemini Web UI    │
-                     └────────────────────────────┘
-```
+`gemini_client.__init__` exposes the main end-user API:
+
+- `Chatbot`
+- `AsyncChatbot`
+- `Model`
+- `Endpoint`
+- `Headers`
+- `Image`
+- `WebImage`
+- `GeneratedImage`
+- `upload_file`
+- `load_cookies` fileciteturn1file0turn1file10turn1file14turn1file15turn1file5
+
+That means a user can import the package and immediately work with:
+- synchronous chat
+- asynchronous chat
+- image saving
+- cookie loading
+- manual upload helpers
 
 ---
 
-# ⚡ How Gemini Nexus Works
+## File-by-file analysis
 
-Google actively blocks automated traffic using advanced techniques like:
+### `constants.py`
 
-- TLS fingerprint analysis
-- Behavioral analysis
-- Header validation
-- Browser signature inspection
-- Connection fingerprinting
+This file defines the low-level reference data used across the package:
 
-Traditional Python libraries such as:
+- a full cookie-name enum for Google-related cookies
+- `TARGET_COOKIES`, which currently focuses on `__Secure-1PSID` and `__Secure-1PSIDTS`
+- browser extraction backends for `browser_cookie3`
+- Gemini-related base URLs and a resumable upload endpoint
+- default request headers for chat and upload flows
+- a mapping for Replit-style language file names
+- a country/language dictionary used by the project for locale-related work
 
-```python
-requests
-aiohttp
-httpx
-```
+The browser list includes Chrome, Chromium, Opera, Opera GX, Brave, Edge, Vivaldi, Firefox, LibreWolf, and Safari. fileciteturn1file10
 
-are easily detected by Google's infrastructure.
+### `cookie_manager.py`
 
-Gemini Nexus bypasses these protections using:
+`CookieExtractor` scans supported browsers, tries each browser backend, and keeps the first browser that yields a reasonable cookie jar. It then filters the jar down to the target Google cookies, normalizing names so underscore and hyphen variants compare cleanly. When `save_to_disk=True`, it writes a compact JSON file containing only the extracted cookie name/value pairs. fileciteturn1file2turn1file10
 
-```python
-from curl_cffi.requests import AsyncSession
-```
+### `enums.py`
 
-which impersonates the exact TLS fingerprints of a real Chrome browser.
+This file holds the hard-coded Gemini endpoints and model metadata:
+
+- `Endpoint.INIT` → the Gemini app page used to fetch the bootstrapping tokens
+- `Endpoint.GENERATE` → the `StreamGenerate` endpoint used for chat
+- `Endpoint.ROTATE_COOKIES` → the Google cookie-rotation endpoint
+- `Endpoint.UPLOAD` → the resumable upload base endpoint
+
+The model enum currently includes:
+
+- `unspecified`
+- `gemini-3.1-flash-lite`
+- `gemini-3.5-flash`
+- `gemini-3.1-pro`
+- `gemini-3.0-flash`
+- `gemini-3.0-flash-thinking`
+
+Each model can carry its own request-header extension payload, and `Model.from_name()` resolves a user-supplied model string back to the enum member. fileciteturn1file10
+
+### `utils.py`
+
+Two helpers live here:
+
+- `upload_file(...)`: performs a resumable upload using `curl_cffi`, first starting the upload session, then posting the file content to the returned upload URL
+- `load_cookies(...)`: reads a `cookies.json` file and extracts `__Secure-1PSID` and `__Secure-1PSIDTS`
+
+The upload helper supports byte content or file paths and can optionally route through a proxy. fileciteturn1file14turn1file15
+
+### `images.py`
+
+The image layer provides three classes:
+
+- `Image`: a downloadable image object with `save()`
+- `WebImage`: a semantic subclass for search-result images
+- `GeneratedImage`: a subclass that requires a cookie dictionary and reuses the parent save flow
+
+`Image.save()` derives a filename from the URL if one is not given, sanitizes invalid characters, applies a 255-character filename guard, downloads through `curl_cffi`, and writes the file locally. `GeneratedImage.save()` creates a timestamp-based filename when needed and then delegates to the parent implementation. fileciteturn1file5
+
+### `core.py`
+
+This is the heart of the package.
+
+`Chatbot` is a synchronous wrapper around `AsyncChatbot`. It creates or reuses an event loop, loads cookies from disk or from browser extraction, and then instantiates the async client. It exposes:
+- `ask()`
+- `ask_stream()`
+- `save_conversation()`
+- `load_conversations()`
+- `load_conversation()`
+
+`AsyncChatbot` is the real engine. Its important responsibilities are:
+
+- build a browser-like `AsyncSession` with cookies and impersonation
+- fetch `SNlM0e` and `PI9WOb` from the Gemini start page
+- optionally rotate cookies via `RotateCookies`
+- persist conversation state
+- upload images before prompting
+- build Gemini request payloads
+- parse the nested Gemini response format
+- extract text, images, conversation IDs, response IDs, and choice IDs
+- stream delta chunks for live UIs
+- return structured dictionaries for both streaming and non-streaming use cases
+
+The non-stream path returns a dictionary with:
+- `content`
+- `conversation_id`
+- `response_id`
+- `choice_id`
+- `factualityQueries`
+- `textQuery`
+- `choices`
+- `images`
+- `error`
+
+The stream path yields small dictionaries containing the accumulated content, the live delta chunk, IDs for persistence, images, and an error flag. fileciteturn1file17turn1file2
+
+### `api.py`
+
+This is the OpenAI-style HTTP layer. It mounts FastAPI with permissive CORS and defines the public request models:
+
+- `Message`
+- `ChatCompletionRequest`
+- `CookieUpdateRequest`
+
+It also defines two auth guards:
+- `verify_api_key()`
+- `verify_admin_key()`
+
+Both read key details from SQLite, reject inactive keys, and the admin guard requires the stored `role` to be `admin`. fileciteturn1file17turn1file16turn1file5
+
+### `database.py`
+
+This file initializes and manages the SQLite database.
+
+Tables:
+- `cookies`
+- `api_keys`
+- `system_status`
+
+Notable columns:
+- `api_keys.allowed_models`
+- `api_keys.conversation_id`
+- `api_keys.response_id`
+- `api_keys.choice_id`
+- `api_keys.last_used`
+- `api_keys.timeout_hours`
+- `api_keys.role`
+- `system_status.needs_update`
+- `system_status.last_alert`
+
+The helper set supports:
+- cookie updates and reads
+- API key creation
+- key listing
+- key revocation
+- key lookup
+- key session persistence
+- timeout management
+- the auto-heal flag
+- flood-control timing for admin alerts. fileciteturn1file16turn1file17
+
+### `admin_bot.py`
+
+This is the Telegram control plane.
+
+It handles:
+- `/chat` and `/end`
+- session save/load/list
+- model listing and model switching
+- API key generation (`/newkey`, `/newadminkey`)
+- key listing, timeout edits, and revocation
+- cookie replacement with guided step-by-step prompts
+- health checks
+- file upload/download for `database.db` and `telegram_sessions.json`
+- user DM relay to the admin
+- admin reply forwarding back to the original user
+- manual `/send` to any chat ID
+
+It also includes robust Markdown-to-Telegram HTML formatting helpers and a chunking helper that keeps Telegram messages within size limits. The bot can send a distress alert to the admin if Gemini authentication appears broken. fileciteturn1file3turn1file9turn1file11
+
+### `main.py`
+
+Startup sequence:
+
+1. load `.env`
+2. initialize SQLite
+3. sync cookies from `cookies.json` into the DB if that file exists
+4. start the Telegram bot in a background thread
+5. start Uvicorn on `PORT` or `8000`
+
+On Windows, it switches the event-loop policy to `WindowsSelectorEventLoopPolicy` to keep `curl_cffi` happy. fileciteturn1file12
+
+### `index.html`
+
+This is a standalone browser client, not a server-side template.
+
+It provides:
+- API base URL input
+- API key input
+- streaming toggle
+- model selector
+- image attachment preview
+- markdown rendering with `marked.js`
+- message editing
+- streaming token display
+- a polished dark UI built with Tailwind
+
+It sends OpenAI-shaped payloads to `/v1/chat/completions` and renders either streaming SSE chunks or the final response object. fileciteturn1file4turn1file8turn1file12turn1file19
+
+### `test.py`
+
+A tiny terminal demo:
+- creates `Chatbot(...)`
+- asks for a prompt
+- optionally asks for an image path
+- prints the assistant reply
+
+This is the simplest way to verify the core client without the web server. fileciteturn1file15
+
+### `requirements.txt`
+
+The runtime dependency set is intentionally small:
+
+- `curl_cffi`
+- `pydantic`
+- `rich`
+- `requests`
+- `browser-cookie3`
+- `fastapi`
+- `uvicorn`
+- `python-multipart`
+- `pyTelegramBotAPI`
+- `python-dotenv` fileciteturn1file14
+
+### `Dockerfile`
+
+The container is straightforward:
+
+- Python 3.11 slim base
+- installs requirements
+- creates `/app/data`
+- copies the repository
+- exposes port `8000`
+- runs `python main.py`
+
+### `cookies.json`
+
+This file is a local cookie cache containing values for:
+- `__Secure-1PSID`
+- `__Secure-1PSIDTS`
+
+It is treated as a runtime secret and should not be committed to public source control. The startup script can read it and sync it into the database automatically. fileciteturn1file12turn1file14
+
+### `README.md`
+
+The existing README already describes the project as an OpenAI-compatible Gemini proxy with cookie automation, Telegram administration, image support, Docker deployment, and auto-healing cookie refresh logic. This rewritten README goes deeper into the code-level behavior and corrects the route documentation to match the actual implementation. fileciteturn1file1turn1file6turn1file13
 
 ---
 
-# 🔐 Authentication System
+## API reference
 
-Gemini Nexus authenticates using real Google session cookies.
+### Authentication
 
-Required cookies:
+All public HTTP routes use a bearer token:
 
-```text
-__Secure-1PSID
-__Secure-1PSIDTS
+```http
+Authorization: Bearer sk-...
 ```
 
-These cookies are extracted from your logged-in Gemini browser session.
+Key validation looks up the token in SQLite. Disabled keys are rejected with `401`, and model access is limited by the `allowed_models` field. Admin-only routes additionally require the stored role to be `admin`. fileciteturn1file17turn1file16
 
----
+### `GET /v1/models`
 
-# 🍪 Cookie Auto Extraction
+Returns the model list in an OpenAI-compatible shape.
 
-One of the most advanced features of Gemini Nexus is automatic browser cookie extraction.
+Behavior:
+- reads the caller’s API key
+- checks whether the key is limited to a model subset
+- skips `unspecified`
+- returns each allowed model as an object with `id`, `object`, `created`, `owned_by`, `permission`, `root`, and `parent`
 
-The project uses:
-
-```python
-import browser_cookie3
-```
-
-to directly access browser cookie databases.
-
-Supported browsers include:
-
-- Chrome
-- Edge
-- Brave
-- Opera
-- Firefox
-- Chromium
-- Vivaldi
-- Safari
-- LibreWolf
-
----
-
-## Auto Cookie Workflow
-
-```text
-User Logged Into Gemini
-            │
-            ▼
- browser_cookie3 scans browser
-            │
-            ▼
- Extract __Secure-1PSID
- Extract __Secure-1PSIDTS
-            │
-            ▼
- Inject into AsyncSession
-            │
-            ▼
- Authenticated Gemini Access
-```
-
----
-
-## Actual Cookie Extraction Logic
-
-```python
-if auto_cookie:
-    extractor = CookieExtractor()
-    cookie_data = extractor.extract_cookies(save_to_disk=False)
-
-    self.secure_1psid = cookie_data['__Secure-1PSID']
-    self.secure_1psidts = cookie_data['__Secure-1PSIDTS']
-```
-
----
-
-## Browser Extraction Engine
-
-```python
-for browser_fn in SUPPORTED_BROWSERS:
-    cj = browser_fn(domain_name=domain)
-```
-
-The project loops through all installed browsers until valid Google cookies are found.
-
----
-
-# 🔄 Auto Cookie Rotation
-
-Gemini Nexus also supports automatic cookie refresh.
-
-When `__Secure-1PSIDTS` becomes outdated, the system can request a fresh cookie using:
-
-```text
-https://accounts.google.com/RotateCookies
-```
-
----
-
-## Cookie Rotation Logic
-
-```python
-async def __rotate_cookies(self):
-```
-
-This allows the system to survive temporary cookie refreshes without requiring manual login again.
-
----
-
-# 🧬 OpenAI Compatibility Layer
-
-Gemini Nexus converts OpenAI requests into Gemini WebUI requests.
-
-Incoming request:
+Example response shape:
 
 ```json
 {
-  "model": "gpt-4",
-  "messages": [
+  "object": "list",
+  "data": [
     {
-      "role": "user",
-      "content": "Hello"
+      "id": "gemini-3.1-flash-lite",
+      "object": "model",
+      "created": 1710000000,
+      "owned_by": "google",
+      "permission": [],
+      "root": "gemini-3.1-flash-lite",
+      "parent": null
     }
   ]
 }
 ```
 
-gets transformed internally into Gemini request structures.
+### `POST /v1/chat/completions`
 
----
+This is the main inference route.
 
-## Supported Endpoints
+Accepted request fields include:
+- `model`
+- `messages`
+- `temperature`
+- `top_p`
+- `n`
+- `stream`
+- `stop`
+- `max_tokens`
+- `max_completion_tokens`
+- `presence_penalty`
+- `frequency_penalty`
+- `logit_bias`
+- `user`
+- `seed`
+- `response_format`
+- `tools`
+- `tool_choice`
 
-| Endpoint | Description |
-|---|---|
-| `/v1/chat/completions` | Chat completion API |
-| `/v1/models` | Available models |
-| `/v1/admin/cookies` | Cookie auto-healing |
-| `/health` | Diagnostics |
+The request model tolerates extra fields and ignores unknown fields, which makes it more forgiving for OpenAI clients. Internally, the handler mainly uses `model`, `messages`, and `stream`; the rest are accepted for compatibility. fileciteturn1file17turn1file16
 
----
+Request content handling:
 
-# 🖼️ Multimodal Support
+- plain text messages are passed through as strings
+- multimodal payloads can be lists of content items
+- `type: "text"` items are concatenated into the prompt
+- `type: "image_url"` items support `data:image/...;base64,...` URLs
+- if the prompt is empty but an image exists, the code falls back to `Describe this image.`
 
-Gemini Nexus supports:
+Response modes:
 
-- Image uploads
-- Image parsing
-- Generated image extraction
-- Multimodal prompts
+**Streaming (`stream: true`)**
+- returns `text/event-stream`
+- emits `data: {chunk_json}`
+- each chunk contains `choices[0].delta.content`
+- image references are emitted in `delta.images` when present
+- final chunk uses `finish_reason: "stop"`
+- stream ends with `data: [DONE]`
 
----
+**Non-streaming (`stream: false`)**
+- returns a regular JSON object
+- response shape matches OpenAI-style chat completions
+- assistant content is flattened into a plain string
+- image URLs are normalized into simple `{url, title}` objects
 
-## Example
+Session persistence:
+- after each response, the handler stores conversation IDs back into the DB under the API key
+- the next request with the same key can continue the same thread
 
-```python
-response = chatbot.ask(
-    "Describe this image",
-    image="cat.png"
-)
+Error behavior:
+- if no cookies are available, the route returns `500`
+- if the requested model is not allowed, the route returns `403`
+- if Gemini-like auth errors are detected, the code flips the `needs_update` flag and can trigger Telegram admin alerting. fileciteturn1file17turn1file16turn1file10turn1file12
+
+### `GET /v1/admin/cookie_status`
+
+Admin-only route.
+
+Returns:
+
+```json
+{"needs_update": true}
 ```
 
----
+or
 
-# 📋 Requirements
-
-## Required
-
-- Python 3.10+
-- Google account
-- Telegram account
-- Telegram bot token
-- Telegram user ID
-
-## Optional
-
-- Docker
-- VPS server
-- SOCKS5 proxy
-- Reverse proxy
-
----
-
-# 🚀 Installation Guide
-
----
-
-## 1. Clone Repository
-
-```bash
-git clone https://github.com/Animeki004/Gemini-Chat-API.git
-cd Gemini-Chat-API
+```json
+{"needs_update": false}
 ```
 
----
+This endpoint is meant for a Chrome-extension or other admin tool that polls for cookie intervention. fileciteturn1file17
 
-## 2. Create Virtual Environment
+### `POST /v1/admin/cookies`
 
-### Windows
+Admin-only route.
 
-```bash
-python -m venv .venv
-.venv\Scripts\activate
+Body:
+
+```json
+{
+  "psid": "string",
+  "psidts": "string"
+}
 ```
 
-### Linux / macOS
+Behavior:
+- updates the stored cookies in SQLite
+- clears the `needs_update` flag
+- optionally sends a Telegram confirmation to the admin
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
----
-
-## 3. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
+This is the auto-heal path used when fresh cookie values are pushed back into the server. fileciteturn1file17turn1file16
 
 ---
 
-## 4. Configure Environment Variables
+## Telegram admin commands
 
-Create `.env`
+The bot-side command surface is much broader than the HTTP API.
 
-```env
-TELEGRAM_BOT_TOKEN=your_bot_token
-ADMIN_ID=your_telegram_id
-PORT=8000
-```
+### Chat and session flow
+- `/chat` starts an interactive chat mode
+- `/end` ends it
+- `/save <name>` stores the current session
+- `/sessions` lists saved sessions
+- `/load <name>` restores a saved session
 
----
+### Model control
+- `/models` lists available models
+- `/setmodel <name>` changes the active model for the admin session
 
-## 5. Start Server
+### API key management
+- `/newadminkey [name]` creates an admin key
+- `/newkey [name]` creates a standard key and then asks for allowed models
+- `/listkeys` shows all keys, status, model scope, timeout, and role
+- `/settimeout <key_name> <hours>` updates a key’s session timeout
+- `/revoke <key>` disables a key
 
-```bash
-python main.py
-```
+### Cookie and health management
+- `/setcookies` updates the stored Gemini cookies
+- `/health` checks whether Gemini is reachable for the current model
+- `/backup` or `/download` sends `database.db` and `telegram_sessions.json`
+- `/upload` accepts updated `database.db` or `telegram_sessions.json` files
 
----
-
-# 🐳 Docker Deployment
-
----
-
-## Build Image
-
-```bash
-docker build -t gemini-nexus .
-```
-
----
-
-## Run Container
-
-```bash
-docker run -d \
--p 8000:8000 \
--v $(pwd)/data:/app/data \
---env-file .env \
---name gemini-nexus \
-gemini-nexus
-```
+### Relay tools
+- non-admin private messages are forwarded to the admin
+- replying to the forwarded message sends a message back to the original user
+- `/send <chat_id> <message>` sends a manual message to any chat ID. fileciteturn1file3turn1file9turn1file11
 
 ---
 
-# ⚙️ Environment Variables
+## Data model
 
-| Variable | Description |
-|---|---|
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token |
-| `ADMIN_ID` | Telegram administrator ID |
-| `PORT` | FastAPI server port |
-| `DEBUG` | Debug logging |
-| `PROXY` | Optional proxy URL |
+### `cookies`
+Stores the current Google auth cookie pair:
+- `psid`
+- `psidts`
 
----
+### `api_keys`
+Stores API access control and session continuity:
+- `key`
+- `name`
+- `active`
+- `allowed_models`
+- `conversation_id`
+- `response_id`
+- `choice_id`
+- `last_used`
+- `timeout_hours`
+- `role`
 
-# 🤖 Telegram Bot System
+### `system_status`
+Stores server-wide flags:
+- `needs_update`
+- `last_alert`
 
-The Telegram bot acts as the remote administration panel for the server.
-
-Only the configured admin can execute commands.
-
----
-
-## Available Commands
-
-| Command | Description |
-|---|---|
-| `/start` | Show help |
-| `/help` | Documentation |
-| `/chat` | Direct Gemini chat |
-| `/end` | Exit chat |
-| `/setcookies` | Update Google cookies |
-| `/newkey` | Generate API key |
-| `/newadminkey` | Generate admin key |
-| `/listkeys` | View active keys |
-| `/settimeout` | Set conversation timeout |
-| `/revoke` | Revoke API key |
-| `/models` | Show available models |
-| `/health` | Diagnostics |
-| `/backup` | Download database backup |
+That means the server can signal external automation when cookies need intervention, and it can rate-limit repeat alerts. fileciteturn1file16turn1file17
 
 ---
 
-# 📡 API Examples
+## How chat requests flow
+
+1. The client posts an OpenAI-shaped payload to `/v1/chat/completions`.
+2. The API checks the bearer token.
+3. The DB decides whether the requested model is allowed.
+4. The code loads Google cookies from SQLite.
+5. `AsyncChatbot.create()` fetches Gemini bootstrap tokens.
+6. The prompt and optional image are converted into Gemini’s internal request structure.
+7. Gemini returns text and possibly image references.
+8. The API returns OpenAI-shaped JSON or SSE chunks.
+9. Conversation IDs are saved back into the API-key record. fileciteturn1file17turn1file16turn1file12
 
 ---
 
-## cURL Example
+## Usage examples
 
-```bash
-curl http://localhost:8000/v1/chat/completions \
--H "Content-Type: application/json" \
--H "Authorization: Bearer sk-your-api-key" \
--d '{
-  "model": "gemini-1.5-pro",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Explain quantum computing."
-    }
-  ]
-}'
-```
-
----
-
-## Python Example
+### Python
 
 ```python
 from openai import OpenAI
@@ -505,21 +572,16 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="gemini-1.5-pro",
+    model="gemini-3.1-flash-lite",
     messages=[
-        {
-            "role": "user",
-            "content": "Write a Fibonacci script"
-        }
+        {"role": "user", "content": "Write a Fibonacci script"}
     ]
 )
 
 print(response.choices[0].message.content)
 ```
 
----
-
-## JavaScript Example
+### JavaScript
 
 ```javascript
 import OpenAI from "openai";
@@ -530,198 +592,99 @@ const client = new OpenAI({
 });
 
 const response = await client.chat.completions.create({
-  model: "gemini-1.5-pro",
+  model: "gemini-3.1-flash-lite",
   messages: [
-    {
-      role: "user",
-      content: "Hello Gemini"
-    }
+    { role: "user", content: "Hello Gemini" }
   ]
 });
 
 console.log(response.choices[0].message.content);
 ```
 
----
+### Local CLI client
 
-# 💻 Web UI
+```python
+from gemini_client import Chatbot, Model
 
-Gemini Nexus includes a Monaco-powered frontend interface.
-
-Features:
-
-- Dark mode
-- Syntax highlighting
-- Code formatting
-- Persistent chat
-- Copy-to-clipboard
-- Responsive layout
-
-Open:
-
-```text
-index.html
-```
-
-in your browser.
-
----
-
-# 📂 Repository Structure
-
-```text
-GEMINI-CHAT-API/
-│
-├── data/
-│   ├── database.db
-│   └── telegram_sessions.json
-│
-├── gemini_client/
-│   ├── __init__.py
-│   ├── constants.py
-│   ├── cookie_manager.py
-│   ├── core.py
-│   ├── enums.py
-│   ├── images.py
-│   └── utils.py
-│
-├── legacy/
-│
-├── admin_bot.py
-├── api.py
-├── database.py
-├── Dockerfile
-├── index.html
-├── LICENSE
-├── main.py
-├── README.md
-├── requirements.txt
-└── test.py
+bot = Chatbot(cookie_path="cookies.json", model=Model.G_3_1_FLASH_LITE)
+print(bot.ask("Hello"))
 ```
 
 ---
 
-# 🛡️ Security & Stealth
+## Installation
 
-Gemini Nexus focuses heavily on stealth networking.
+### 1) Create a virtual environment
 
-Security mechanisms include:
-
-- TLS impersonation
-- Browser-identical headers
-- Real browser cookies
-- Proxy support
-- Session rotation
-- Admin verification
-- SQLite isolation
-
----
-
-# 📈 Performance
-
-## Recommended Specifications
-
-| Usage | RAM | CPU |
-|---|---|---|
-| Personal | 1 GB | 1 Core |
-| Small Team | 2 GB | 2 Cores |
-| Heavy Usage | 4 GB+ | 4 Cores |
-
----
-
-## Performance Optimizations
-
-- Async networking
-- Connection pooling
-- Streaming responses
-- TLS session reuse
-- SQLite persistence
-- Lightweight architecture
-
----
-
-# 🧩 Technology Stack
-
-| Technology | Purpose |
-|---|---|
-| FastAPI | API backend |
-| curl_cffi | TLS impersonation |
-| SQLite | Database |
-| asyncio | Async execution |
-| Telegram Bot API | Remote management |
-| Docker | Deployment |
-| Monaco Editor | Frontend |
-
----
-
-# ⚠️ Disclaimer
-
-> Educational Purposes Only.
-
-This project is unofficial and is not affiliated with:
-
-- Google LLC
-- OpenAI
-
-This repository exists for:
-- reverse engineering research
-- API interoperability research
-- networking research
-- TLS fingerprinting studies
-
-Using automation against web interfaces may violate Terms of Service.
-
-Use responsibly.
-
----
-
-# 📜 License
-
-Licensed under the MIT License.
-
-See:
-
-```text
-LICENSE
+```bash
+python -m venv .venv
 ```
 
-for details.
+### 2) Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3) Configure environment variables
+
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token
+ADMIN_ID=your_telegram_id
+PORT=8000
+```
+
+### 4) Start the server
+
+```bash
+python main.py
+```
+
+On first launch, the app initializes the database, syncs cookies from `cookies.json` if present, starts the Telegram bot in a background thread, and runs Uvicorn on the configured port. fileciteturn1file12
 
 ---
 
-# ❤️ Credits
+## Docker
 
-Inspired by:
+Build:
 
-- OEvortex/Gemini-Chat-API
+```bash
+docker build -t gemini-nexus .
+```
 
-Enhanced and expanded by:
+Run:
 
-- Animeki004
-
----
-
-# 🌟 Final Notes
-
-Gemini Nexus is designed to provide:
-
-- OpenAI compatibility
-- stealth networking
-- production architecture
-- scalable deployments
-- persistent memory
-- enterprise-grade infrastructure
-
-while maintaining a clean developer experience.
+```bash
+docker run -d \
+  -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  --env-file .env \
+  --name gemini-nexus \
+  gemini-nexus
+```
 
 ---
 
-<div align="center">
+## Security and operational notes
 
-# 🚀 Gemini Nexus
+- The project depends on real Google cookies.
+- `cookies.json` and the SQLite database are sensitive runtime artifacts.
+- Model access is enforced per API key.
+- Admin-only routes are blocked unless the API key is marked `admin`.
+- Cookie failures can trigger the `needs_update` flag and a Telegram alert.
+- The project uses TLS/browser impersonation through `curl_cffi`, not a standard HTTP client. fileciteturn1file17turn1file16turn1file12turn1file10
 
-### Bridging Gemini and OpenAI Ecosystems
+---
 
-⭐ Star the repository if you found it useful.
+## Limitations worth knowing
 
-</div>
+- The OpenAI compatibility layer is focused on chat completions and model listing.
+- Fields such as `tools`, `tool_choice`, and advanced OpenAI options are accepted for compatibility, but the current handler mainly uses the core chat/message fields.
+- The `/v1/admin/*` routes are separate from the Telegram `/health` command.
+- The backend is tightly coupled to the current Gemini web-response structure, so upstream changes may require parser updates. fileciteturn1file16turn1file17turn1file12
+
+---
+
+## License and attribution
+
+The repository includes a license file and an explicit “unofficial / not affiliated” disclaimer. This README keeps the same practical framing: it describes what the code does, how the parts fit together, and where the boundaries are. fileciteturn1file13turn1file1
