@@ -3,17 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini API Tester (Vision & Persistence)</title>
+    <title>Gemini API Tester (Dark Mode & Persistence)</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Marked.js for parsing markdown in bot responses -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
+        /* Custom scrollbar for the chat area (Dark theme) */
         .chat-scroll::-webkit-scrollbar { width: 6px; }
         .chat-scroll::-webkit-scrollbar-track { background: transparent; }
         .chat-scroll::-webkit-scrollbar-thumb { background-color: #475569; border-radius: 10px; }
         .chat-scroll::-webkit-scrollbar-thumb:hover { background-color: #64748b; }
         
+        /* Markdown styling inside chat bubbles */
         .markdown-body p { margin-bottom: 0.5rem; }
         .markdown-body pre { background-color: #0d0d0d; color: #e2e8f0; padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; margin-top: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #333333; }
         .markdown-body code { font-family: monospace; background-color: #2d2d2d; padding: 0.1rem 0.3rem; border-radius: 0.25rem; }
@@ -23,6 +25,7 @@
         .markdown-body ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.5rem; }
         .markdown-body ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 0.5rem; }
         
+        /* Blinking cursor for live typing effect */
         .cursor-blink { animation: blink 1s step-end infinite; }
         @keyframes blink { 50% { opacity: 0; } }
     </style>
@@ -72,41 +75,21 @@
     <div class="flex-1 flex flex-col h-screen bg-gray-900">
         <!-- Messages Container -->
         <div id="chatBox" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 chat-scroll bg-gray-900 pb-32">
+            <!-- Initial placeholder message -->
             <div class="flex flex-col items-center justify-center h-full text-gray-500 space-y-4 opacity-80" id="emptyState">
-                <svg class="w-20 h-20 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                <svg class="w-20 h-20 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
                 <p class="text-lg font-medium text-gray-400">Enter your API key and fetch models to start chatting.</p>
             </div>
         </div>
 
         <!-- Input Area -->
-        <div class="border-t border-gray-700 bg-gray-800 p-4 shadow-lg flex flex-col gap-2">
-            
-            <div class="max-w-4xl mx-auto w-full flex flex-col gap-2 relative">
-                <!-- Image Preview Display -->
-                <div id="imagePreviewContainer" class="hidden flex">
-                    <div class="relative inline-block mt-1 mb-2">
-                        <img id="imagePreview" src="" class="h-20 w-auto rounded-lg border border-gray-600 object-cover shadow-sm">
-                        <button type="button" onclick="removeImage()" class="absolute -top-2 -right-2 bg-gray-700 hover:bg-red-500 text-white rounded-full p-1 shadow transition-colors border border-gray-500">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="flex gap-3 relative items-end">
-                    <!-- Hidden file input -->
-                    <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
-                    
-                    <!-- Upload Button -->
-                    <button type="button" onclick="document.getElementById('imageInput').click()" class="p-3 bg-gray-700 text-gray-400 rounded-xl hover:bg-gray-600 hover:text-white transition-colors shadow-inner flex-shrink-0" title="Upload Image">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
-                    </button>
-
-                    <textarea id="messageInput" rows="1" placeholder="Type your message here..." class="w-full pl-4 pr-12 py-3 bg-gray-700 border border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100 placeholder-gray-400 resize-none shadow-inner"></textarea>
-                    
-                    <button type="button" onclick="sendMessage()" id="sendBtn" class="absolute right-2 bottom-2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
-                    </button>
-                </div>
+        <div class="border-t border-gray-700 bg-gray-800 p-4 shadow-lg">
+            <div class="max-w-4xl mx-auto flex gap-3 relative">
+                <textarea id="messageInput" rows="1" placeholder="Type your message here..." class="w-full pl-4 pr-12 py-3 bg-gray-700 border border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100 placeholder-gray-400 resize-none shadow-inner"></textarea>
+                
+                <button type="button" onclick="sendMessage()" id="sendBtn" class="absolute right-2 bottom-2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                </button>
             </div>
         </div>
     </div>
@@ -120,28 +103,35 @@
     <!-- Monaco Editor Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
     <script>
+        // Store bubbles that loaded before Monaco finished initializing
         let pendingMonacoElements = [];
         let monacoThemeDefined = false;
 
         require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
         require(['vs/editor/editor.main'], function() {
+            // Define a true neutral dark theme (ChatGPT / VS Code style)
             monaco.editor.defineTheme('modern-dark', {
                 base: 'vs-dark',
                 inherit: true,
-                rules: [{ background: '0d0d0d' }],
+                rules: [
+                    { background: '0d0d0d' }
+                ],
                 colors: {
-                    'editor.background': '#0d0d0d', 
-                    'editor.lineHighlightBackground': '#1a1a1a', 
-                    'editorLineNumber.foreground': '#858585', 
-                    'editorIndentGuide.background': '#333333', 
-                    'editor.selectionBackground': '#264f78' 
+                    'editor.background': '#0d0d0d', // True dark/black like ChatGPT
+                    'editor.lineHighlightBackground': '#1a1a1a', // Neutral dark
+                    'editorLineNumber.foreground': '#858585', // Neutral gray
+                    'editorIndentGuide.background': '#333333', // Neutral gray
+                    'editor.selectionBackground': '#264f78' // Standard VS Code selection blue
                 }
             });
             monacoThemeDefined = true;
+
+            // Apply Monaco to any pending blocks once it's loaded
             pendingMonacoElements.forEach(el => applyMonacoEditors(el));
             pendingMonacoElements = [];
         });
 
+        // Helper function for reliable copying inside restrictive iframes
         function fallbackCopyTextToClipboard(text) {
             const textArea = document.createElement("textarea");
             textArea.value = text;
@@ -151,11 +141,16 @@
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
-            try { document.execCommand('copy'); } catch (err) {}
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+            }
             document.body.removeChild(textArea);
         }
 
         function applyMonacoEditors(container) {
+            // If Monaco isn't ready, push to queue
             if (!window.monaco || !monacoThemeDefined) {
                 pendingMonacoElements.push(container);
                 return;
@@ -164,6 +159,8 @@
             const codeBlocks = container.querySelectorAll('pre code');
             codeBlocks.forEach(codeEl => {
                 const pre = codeEl.parentElement;
+                
+                // Prevent initializing the same block twice
                 if (pre.classList.contains('monaco-initialized')) return;
                 pre.classList.add('monaco-initialized');
 
@@ -173,6 +170,7 @@
                     if (cls.startsWith('language-')) lang = cls.replace('language-', '');
                 });
 
+                // Map standard markdown languages to Monaco recognized strings
                 const langMap = {
                     'js': 'javascript', 'ts': 'typescript', 'py': 'python',
                     'sh': 'shell', 'bash': 'shell', 'html': 'html',
@@ -182,9 +180,11 @@
                 };
                 lang = langMap[lang] || lang;
 
+                // Dynamically scale the editor height based on lines of code
                 const lines = code.trim().split('\n').length;
-                const height = Math.min(Math.max(lines * 19 + 30, 80), 400); 
+                const height = Math.min(Math.max(lines * 19 + 30, 80), 400); // 400px Max Height
 
+                // Create and style the wrapper container
                 const wrapperDiv = document.createElement('div');
                 wrapperDiv.style.position = 'relative';
                 wrapperDiv.style.width = '100%';
@@ -194,18 +194,24 @@
                 wrapperDiv.style.marginBottom = '1rem';
                 wrapperDiv.style.border = '1px solid #333333';
 
+                // Create Copy Button
                 const copyBtn = document.createElement('button');
                 copyBtn.className = 'absolute top-3 right-6 z-10 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-gray-300 px-2.5 py-1.5 rounded-md transition-colors text-xs flex items-center gap-1.5 border border-[#444] opacity-80 hover:opacity-100 shadow-sm cursor-pointer';
                 copyBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg> Copy`;
 
+                // Create Monaco container
                 const monacoDiv = document.createElement('div');
                 monacoDiv.style.height = height + 'px';
                 monacoDiv.style.width = '100%';
 
+                // Assemble structure
                 wrapperDiv.appendChild(copyBtn);
                 wrapperDiv.appendChild(monacoDiv);
+                
+                // Replace standard pre code with our custom wrapper
                 pre.parentNode.replaceChild(wrapperDiv, pre);
 
+                // Initialize the Editor natively with Modern Dark theme!
                 const editorInstance = monaco.editor.create(monacoDiv, {
                     value: code.trim(),
                     language: lang,
@@ -219,8 +225,10 @@
                     padding: { top: 12, bottom: 12 }
                 });
 
+                // Attach Copy Functionality
                 copyBtn.onclick = () => {
-                    fallbackCopyTextToClipboard(editorInstance.getValue());
+                    const textToCopy = editorInstance.getValue();
+                    fallbackCopyTextToClipboard(textToCopy);
                     const originalHtml = copyBtn.innerHTML;
                     copyBtn.innerHTML = `<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> <span class="text-emerald-400">Copied!</span>`;
                     setTimeout(() => { copyBtn.innerHTML = originalHtml; }, 2000);
@@ -230,9 +238,10 @@
     </script>
 
     <script>
+        // --- State Management ---
         let messageHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
-        let selectedImageBase64 = null;
 
+        // UI Elements
         const apiUrlInput = document.getElementById('apiUrl');
         const apiKeyInput = document.getElementById('apiKey');
         const modelSelect = document.getElementById('modelSelect');
@@ -241,6 +250,7 @@
         const sendBtn = document.getElementById('sendBtn');
         const emptyState = document.getElementById('emptyState');
 
+        // Initial setup on page load
         window.onload = () => {
             const savedUrl = localStorage.getItem('apiUrl');
             const savedKey = localStorage.getItem('apiKey');
@@ -250,6 +260,7 @@
             if (savedUrl) apiUrlInput.value = savedUrl;
             if (savedKey) apiKeyInput.value = savedKey;
 
+            // RESTORE CACHED MODELS INSTANTLY SO NO REFETCH IS NEEDED ON RELOAD!
             if (cachedModels.length > 0) {
                 modelSelect.innerHTML = '';
                 cachedModels.forEach(model => {
@@ -259,14 +270,22 @@
                     modelSelect.appendChild(opt);
                 });
                 modelSelect.disabled = false;
-                if (savedModel && cachedModels.some(m => m.id === savedModel)) modelSelect.value = savedModel;
+                
+                if (savedModel && cachedModels.some(m => m.id === savedModel)) {
+                    modelSelect.value = savedModel;
+                }
             }
             
-            if (savedKey) fetchModels(true); 
+            // Auto-fetch in the background to ensure models are up to date
+            if (savedKey) {
+                fetchModels(true); 
+            }
             
             if (messageHistory.length > 0) {
                 emptyState.style.display = 'none';
-                messageHistory.forEach(msg => { appendMessage(msg.role, msg.content, true); });
+                messageHistory.forEach(msg => {
+                    appendMessage(msg.role, msg.content, true); 
+                });
             }
         };
 
@@ -282,70 +301,20 @@
 
         messageInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
+                e.preventDefault(); // Prevent new line
                 sendMessage();
             }
         });
 
-        // --- Image Handling Capabilities ---
-        function handleImageUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    // Resize to prevent massive base64 localstorage crashing and huge payloads
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    const MAX_DIM = 1024;
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > height && width > MAX_DIM) {
-                        height *= MAX_DIM / width;
-                        width = MAX_DIM;
-                    } else if (height > MAX_DIM) {
-                        width *= MAX_DIM / height;
-                        height = MAX_DIM;
-                    }
-                    canvas.width = width;
-                    canvas.height = height;
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    selectedImageBase64 = canvas.toDataURL('image/jpeg', 0.85);
-                    document.getElementById('imagePreviewContainer').classList.remove('hidden');
-                    document.getElementById('imagePreview').src = selectedImageBase64;
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-            event.target.value = ''; 
-        }
-
-        function removeImage() {
-            selectedImageBase64 = null;
-            document.getElementById('imagePreviewContainer').classList.add('hidden');
-            document.getElementById('imagePreview').src = '';
-        }
-
         function saveChatState() {
-            // Trim history to prevent QuotaExceededError in localStorage due to base64 images
-            if (messageHistory.length > 20) messageHistory = messageHistory.slice(-20);
-            try {
-                localStorage.setItem('chatHistory', JSON.stringify(messageHistory));
-            } catch (e) {
-                console.warn("Storage quota exceeded, clearing older messages.");
-                messageHistory = messageHistory.slice(-5);
-                localStorage.setItem('chatHistory', JSON.stringify(messageHistory));
-            }
+            localStorage.setItem('chatHistory', JSON.stringify(messageHistory));
         }
 
         function showToast(message, isError = true) {
             const toast = document.getElementById('toast');
             document.getElementById('toastMessage').textContent = message;
             toast.className = `fixed bottom-24 right-4 px-4 py-3 rounded-lg shadow-xl transform transition-all duration-300 z-50 flex items-center gap-2 ${isError ? 'bg-red-600' : 'bg-emerald-600'} text-white font-medium`;
+            
             setTimeout(() => { toast.classList.remove('translate-y-20', 'opacity-0'); }, 10);
             setTimeout(() => { toast.classList.add('translate-y-20', 'opacity-0'); }, 4000);
         }
@@ -361,12 +330,20 @@
 
             try {
                 const response = await fetch(`${baseUrl}/v1/models`, {
+                    method: 'GET',
                     headers: { 'Authorization': `Bearer ${apiKey}` }
                 });
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(()=>({}));
+                    throw new Error(errData.detail || `HTTP error! status: ${response.status}`);
+                }
+
                 const data = await response.json();
                 
+                // Cache the models list so they survive a page reload
                 localStorage.setItem('cachedModels', JSON.stringify(data.data));
+                
                 modelSelect.innerHTML = '';
                 if (data.data && data.data.length > 0) {
                     data.data.forEach(model => {
@@ -376,17 +353,26 @@
                         modelSelect.appendChild(opt);
                     });
                     modelSelect.disabled = false;
+                    
                     const savedModel = localStorage.getItem('selectedModel');
                     if (savedModel && Array.from(modelSelect.options).some(o => o.value === savedModel)) {
                         modelSelect.value = savedModel;
                     } else {
+                        // Automatically select the first model and save it
                         modelSelect.value = data.data[0].id;
                         localStorage.setItem('selectedModel', data.data[0].id);
                     }
                     if (!silent) showToast("Models fetched successfully!", false);
+                } else {
+                    const opt = document.createElement('option');
+                    opt.textContent = "No models available";
+                    modelSelect.appendChild(opt);
                 }
             } catch (error) {
                 if (!silent) showToast("Failed to fetch models: " + error.message);
+                if (error.message.includes("Failed to fetch") && !silent) {
+                    showToast("Network Error: Ensure your API server is running and CORS is enabled.");
+                }
             }
         }
 
@@ -407,28 +393,18 @@
             chatBox.appendChild(msgDiv);
 
             if (role === 'user') {
-                // Determine if it's a vision payload (Array) or just string
-                if (Array.isArray(content)) {
-                    let textPart = content.find(c => c.type === 'text')?.text || '';
-                    let imgPart = content.find(c => c.type === 'image_url')?.image_url?.url || '';
-                    
-                    let htmlBuilder = '';
-                    if (imgPart) htmlBuilder += `<img src="${imgPart}" class="max-w-full h-auto rounded-lg mb-3 max-h-72 object-contain bg-gray-900 border border-blue-500">`;
-                    if (textPart) htmlBuilder += `<div class="whitespace-pre-wrap">${textPart}</div>`;
-                    
-                    bubbleDiv.innerHTML = htmlBuilder;
-                } else {
-                    bubbleDiv.textContent = content;
-                }
+                bubbleDiv.textContent = content;
                 chatBox.scrollTop = chatBox.scrollHeight;
             } else {
                 if (instantLoad) {
                     bubbleDiv.innerHTML = marked.parse(content);
                     chatBox.scrollTop = chatBox.scrollHeight;
+                    // Trigger Monaco Editor upgrade!
                     applyMonacoEditors(bubbleDiv);
                 } else {
                     let charIndex = 0;
                     let currentText = "";
+                    
                     const typeInterval = setInterval(() => {
                         currentText += content.charAt(charIndex);
                         bubbleDiv.innerHTML = marked.parse(currentText) + '<span class="inline-block w-2 h-4 ml-1 bg-gray-400 cursor-blink"></span>';
@@ -439,6 +415,8 @@
                             clearInterval(typeInterval);
                             bubbleDiv.innerHTML = marked.parse(content); 
                             chatBox.scrollTop = chatBox.scrollHeight;
+                            
+                            // Trigger Monaco Editor upgrade once typing finishes!
                             applyMonacoEditors(bubbleDiv);
                         }
                     }, 12);
@@ -451,9 +429,13 @@
             const msgDiv = document.createElement('div');
             msgDiv.id = loadingId;
             msgDiv.className = `flex w-full justify-start`;
+            
             msgDiv.innerHTML = `
                 <div class="bg-gray-800 border border-gray-700 rounded-2xl rounded-bl-sm px-5 py-4 shadow-md flex items-center gap-3 text-gray-400">
-                    <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                     <span class="text-sm font-medium">Connecting...</span>
                 </div>
             `;
@@ -473,27 +455,17 @@
             const apiKey = apiKeyInput.value.trim();
             const model = modelSelect.value;
 
-            if (!text && !selectedImageBase64) return;
+            if (!text) return;
             if (!apiKey) return showToast("API Key is required");
             if (!model) return showToast("Please fetch and select a model first");
-
-            let msgContent = text;
-            if (selectedImageBase64) {
-                // OpenAI Vision Array Format Supported by Backend API
-                msgContent = [
-                    { type: "text", text: text || "What is in this image?" },
-                    { type: "image_url", image_url: { url: selectedImageBase64 } }
-                ];
-            }
 
             messageInput.value = '';
             messageInput.style.height = 'auto';
             sendBtn.disabled = true;
-            removeImage(); // Clears image state instantly visually
 
-            messageHistory.push({ role: "user", content: msgContent });
+            messageHistory.push({ role: "user", content: text });
             saveChatState();
-            appendMessage('user', msgContent, true);
+            appendMessage('user', text, true);
 
             const loadingId = addLoadingIndicator();
 
@@ -513,20 +485,28 @@
                 });
 
                 removeLoadingIndicator(loadingId);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(()=>({}));
+                    messageHistory.pop(); 
+                    saveChatState();
+                    throw new Error(errData.detail || `HTTP error! status: ${response.status}`);
+                }
 
                 const data = await response.json();
                 const assistantMessage = data.choices[0].message.content;
 
                 messageHistory.push({ role: "assistant", content: assistantMessage });
                 saveChatState();
+
                 appendMessage('assistant', assistantMessage, false);
 
             } catch (error) {
                 removeLoadingIndicator(loadingId);
                 showToast(error.message);
-                messageHistory.pop();
-                saveChatState();
+                if (error.message.includes("Failed to fetch")) {
+                    showToast("Network Error: Ensure CORS is configured in FastAPI.");
+                }
             } finally {
                 sendBtn.disabled = false;
                 messageInput.focus();
@@ -536,7 +516,9 @@
         function clearChat() {
             messageHistory = [];
             localStorage.removeItem('chatHistory');
+            
             chatBox.innerHTML = '';
+            
             if (emptyState) {
                 emptyState.style.display = 'flex';
                 chatBox.appendChild(emptyState);
