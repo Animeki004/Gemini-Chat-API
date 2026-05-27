@@ -243,3 +243,39 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 raise HTTPException(status_code=500, detail=str(response.get("content", "Unknown error occurred.")))
                 
             # ROBUST TEXT EXTRACTION:
+            # Prevents "Blank UI Box" by forcing Gemini's nested list responses into strings
+            raw_content = response.get("content") or ""
+            
+            def extract_text(item: Any) -> str:
+                if isinstance(item, str):
+                    return item
+                elif isinstance(item, list):
+                    return "".join(extract_text(x) for x in item if x is not None)
+                return str(item) if item is not None else ""
+                
+            final_content = extract_text(raw_content).strip()
+
+            return {
+                "id": f"chatcmpl-{uuid.uuid4().hex}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content}, "finish_reason": "stop"}]
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_str = str(e)
+        
+        # SMART AUTO-HEALER TRIGGER & FLOOD CONTROL
+        if any(kw in error_str.lower() for kw in ["cookie", "snlm0e", "auth", "permission", "status: 40", "status: 50"]):
+            # Signal the Chrome Extension
+            db.set_needs_update(True)
+            
+            # Flood Control: Only alert Telegram once every 5 minutes
+            if db.check_and_set_alert_flood(cooldown_seconds=300):
+                from admin_bot import send_admin_alert
+                send_admin_alert("Cookies expired! Notifying Chrome Extension Auto-Healer to execute payload...")
+                
+        raise HTTPException(status_code=500, detail=error_str)
