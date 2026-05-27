@@ -67,15 +67,45 @@
         .markdown-body th, .markdown-body td { border: 1px solid #424242; padding: 0.5rem 0.75rem; text-align: left; }
         .markdown-body th { background-color: #2f2f2f; color: #ffffff; font-weight: 600; }
 
-        /* Perfected Blinking Cursor for Streaming */
+        /* Modern Pulsing AI Cursor for Streaming */
         .streaming-active .markdown-body *:last-child::after { 
-            content: ' ▋'; 
-            color: #ececec; 
-            animation: blink 1s step-start infinite; 
+            content: ''; 
             display: inline-block;
-            vertical-align: baseline;
+            width: 10px;
+            height: 10px;
+            background-color: #ececec;
+            border-radius: 50%;
+            margin-left: 6px;
+            vertical-align: middle;
+            transform: translateY(-1px);
+            animation: ai-pulse 0.7s ease-in-out infinite alternate; 
         }
-        @keyframes blink { 50% { opacity: 0; } }
+        @keyframes ai-pulse {
+            0% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+
+
+        /* Beautiful Three Dot Typing Indicator */
+        .typing-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 4px;
+        }
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background-color: #a1a1aa;
+            border-radius: 50%;
+            animation: typing-bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing-bounce {
+            0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
 
         /* Sidebar transitions */
         .sidebar-transition { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
@@ -110,6 +140,14 @@
             <div class="space-y-1.5">
                 <label class="text-xs text-gray-400 pl-1">API Key</label>
                 <input type="password" id="apiKey" placeholder="sk-..." class="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-gray-500 text-sm text-gray-200 placeholder-gray-500 transition-colors">
+            </div>
+
+            <!-- Stream Toggle Section -->
+            <div class="space-y-1.5 pt-4 border-t border-gray-800">
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-300 pl-1 group">
+                    <input type="checkbox" id="streamToggle" class="w-4 h-4 rounded bg-gray-800 border-gray-700 text-blue-500 focus:ring-blue-600 focus:ring-offset-gray-900 transition-colors">
+                    <span class="group-hover:text-white transition-colors">Stream Responses</span>
+                </label>
             </div>
         </div>
         
@@ -168,7 +206,7 @@
         <div class="shrink-0 px-4 md:px-8 pb-6 pt-2 bg-gradient-to-t from-gray-850 via-gray-850 to-transparent">
             <div class="max-w-3xl mx-auto w-full relative">
                 
-                <!-- Image Preview Popup -->
+                <!-- Image Preview Popup for Uploading -->
                 <div id="imagePreviewContainer" class="hidden absolute bottom-full mb-3 left-0 bg-gray-800 border border-gray-700 rounded-xl p-2 shadow-xl z-10">
                     <div class="relative group">
                         <img id="imagePreview" src="" class="h-16 w-16 object-cover rounded-lg border border-gray-700">
@@ -199,6 +237,23 @@
             </div>
         </div>
     </main>
+
+    <!-- Fullscreen Image Preview Modal -->
+    <div id="fullscreenModal" class="fixed inset-0 z-[100] hidden flex-col items-center justify-center bg-black/90 backdrop-blur-md opacity-0 transition-opacity duration-300">
+        <!-- Clickable background to close -->
+        <div class="absolute inset-0 z-0" onclick="closeImageModal()"></div>
+        
+        <div class="absolute top-4 right-4 flex gap-3 z-10">
+            <button id="downloadModalBtn" class="p-2.5 bg-gray-800/80 text-white rounded-xl hover:bg-gray-700 transition-colors border border-gray-700" title="Download Image">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            </button>
+            <button onclick="closeImageModal()" class="p-2.5 bg-gray-800/80 text-white rounded-xl hover:bg-gray-700 transition-colors border border-gray-700" title="Close Preview">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        
+        <img id="fullscreenImage" src="" class="max-w-[95vw] max-h-[90vh] object-contain rounded-lg shadow-2xl scale-95 transition-transform duration-300 z-10 pointer-events-none">
+    </div>
 
     <!-- Notifications Toast -->
     <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 -translate-y-20 opacity-0 bg-gray-800 text-gray-100 px-4 py-2.5 rounded-lg shadow-2xl border border-gray-700 transition-all duration-300 z-50 flex items-center gap-2.5">
@@ -349,9 +404,102 @@
         let selectedImageBase64 = null;
         let isGenerating = false;
 
+        // --- FULLSCREEN IMAGE PREVIEW HANDLERS ---
+        function openImageModal(url, title) {
+            const modal = document.getElementById('fullscreenModal');
+            const img = document.getElementById('fullscreenImage');
+            const downloadBtn = document.getElementById('downloadModalBtn');
+            
+            img.src = url;
+            
+            // Set download action safely
+            downloadBtn.onclick = async () => {
+                try {
+                    const response = await fetch(url);
+                    const blob = await response.blob();
+                    const blobUrl = window.URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = blobUrl;
+                    
+                    const safeTitle = (title || 'generated-image').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                    a.download = `${safeTitle}.jpg`;
+                    
+                    document.body.appendChild(a);
+                    a.click();
+                    
+                    window.URL.revokeObjectURL(blobUrl);
+                    a.remove();
+                } catch (error) {
+                    // Fallback to direct opening/downloading if CORS blocks blob fetch
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.target = '_blank';
+                    a.download = title || 'image.jpg';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                }
+            };
+            
+                modal.classList.remove('hidden');
+                modal.classList.add('flex'); // Fix centering by explicitly activating flexbox
+                // Trigger reflow to ensure transition works
+                void modal.offsetWidth;
+                
+                modal.classList.remove('opacity-0');
+                img.classList.remove('scale-95');
+                img.classList.add('scale-100');
+        }
+
+            function closeImageModal() {
+                const modal = document.getElementById('fullscreenModal');
+                const img = document.getElementById('fullscreenImage');
+                
+                modal.classList.add('opacity-0');
+                img.classList.remove('scale-100');
+                img.classList.add('scale-95');
+                
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex'); // Clean up flexbox on close
+                    img.src = '';
+                }, 300);
+            }
+
+        // Global Esc key listener for the modal
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('fullscreenModal');
+                if (!modal.classList.contains('hidden')) {
+                    closeImageModal();
+                }
+            }
+        });
+
+        // --- CAROUSEL GLOBALS ---
+        window.carouselState = {};
+        window.moveCarousel = function(id, dir, total) {
+            if (typeof window.carouselState[id] === 'undefined') window.carouselState[id] = 0;
+            let current = window.carouselState[id];
+            current += dir;
+            if (current < 0) current = total - 1;
+            if (current >= total) current = 0;
+            window.carouselState[id] = current;
+            
+            document.getElementById(id + '-track').style.transform = `translateX(-${current * 100}%)`;
+            
+            for(let i = 0; i < total; i++) {
+                const dot = document.getElementById(id + '-dot-' + i);
+                if (dot) dot.className = `w-2 h-2 rounded-full transition-colors shadow ${i === current ? 'bg-white' : 'bg-white/40'}`;
+            }
+        };
+
         const apiUrlInput = document.getElementById('apiUrl');
         const apiKeyInput = document.getElementById('apiKey');
         const modelSelect = document.getElementById('modelSelect');
+        const streamToggle = document.getElementById('streamToggle');
         const chatBox = document.getElementById('chatBox');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
@@ -362,6 +510,7 @@
         window.onload = () => {
             apiUrlInput.value = localStorage.getItem('apiUrl') || 'http://localhost:8000';
             apiKeyInput.value = localStorage.getItem('apiKey') || '';
+            streamToggle.checked = localStorage.getItem('streamEnabled') !== 'false';
             
             const cachedModels = JSON.parse(localStorage.getItem('cachedModels')) || [];
             if (cachedModels.length > 0) populateModelDropdown(cachedModels, localStorage.getItem('selectedModel'));
@@ -373,6 +522,7 @@
         apiUrlInput.addEventListener('input', () => localStorage.setItem('apiUrl', apiUrlInput.value));
         apiKeyInput.addEventListener('input', () => localStorage.setItem('apiKey', apiKeyInput.value));
         modelSelect.addEventListener('change', () => localStorage.setItem('selectedModel', modelSelect.value));
+        streamToggle.addEventListener('change', () => localStorage.setItem('streamEnabled', streamToggle.checked));
 
         messageInput.addEventListener('input', function() {
             this.style.height = 'auto';
@@ -690,8 +840,46 @@
                         nodeData.contentNode.textContent = msg.content;
                     }
                 } else {
-                    nodeData.contentNode.innerHTML = marked.parse(msg.content);
+                    nodeData.contentNode.innerHTML = marked.parse(msg.content || '');
                     applyMonacoEditors(nodeData.contentNode);
+                    
+                    // --- AI CAROUSEL RENDERER ---
+                    if (msg.images && msg.images.length > 0) {
+                        const carouselId = `carousel-${index}`;
+                        let carouselHTML = `<div class="mt-4 relative w-full max-w-lg rounded-xl overflow-hidden bg-[#0d0d0d] border border-gray-700 group shadow-lg">`;
+                        
+                        // Image Track
+                        carouselHTML += `<div id="${carouselId}-track" class="flex transition-transform duration-300 ease-out" style="transform: translateX(0%); width: 100%;">`;
+                        msg.images.forEach((img, i) => {
+                            const url = img.url || img;
+                            const title = (img.title || 'Image').replace(/'/g, "\\'"); // escape single quotes for onclick
+                            carouselHTML += `<div class="w-full shrink-0 flex items-center justify-center p-2">
+                                <img src="${url}" onclick="openImageModal('${url}', '${title}')" class="max-h-80 object-contain rounded-lg cursor-pointer hover:opacity-90 transition-opacity">
+                            </div>`;
+                        });
+                        carouselHTML += `</div>`;
+                        
+                        // Add Navigation/Dots only if there are multiple images
+                        if (msg.images.length > 1) {
+                            carouselHTML += `
+                                <button onclick="window.moveCarousel('${carouselId}', -1, ${msg.images.length})" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                                </button>
+                                <button onclick="window.moveCarousel('${carouselId}', 1, ${msg.images.length})" class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                </button>
+                                <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-black/40 px-2 py-1 rounded-full">
+                            `;
+                            msg.images.forEach((_, i) => {
+                                carouselHTML += `<span id="${carouselId}-dot-${i}" class="w-2 h-2 rounded-full transition-colors shadow ${i === 0 ? 'bg-white' : 'bg-white/40'}"></span>`;
+                            });
+                            carouselHTML += `</div>`;
+                        }
+                        carouselHTML += `</div>`;
+                        
+                        // Append carousel safely beneath text
+                        nodeData.contentNode.insertAdjacentHTML('beforeend', carouselHTML);
+                    }
                 }
                 
                 chatBox.appendChild(nodeData.wrapper);
@@ -725,6 +913,7 @@
             const baseUrl = apiUrlInput.value.replace(/\/+$/, '');
             const apiKey = apiKeyInput.value.trim();
             const model = modelSelect.value;
+            const useStream = streamToggle.checked; // Listen to Sidebar Configuration
 
             if (!apiKey) return showToast("API Key is required");
             if (!model) return showToast("Select a model first");
@@ -739,20 +928,35 @@
             const streamNode = createBubbleNode('assistant', false, messageHistory.length);
             streamNode.wrapper.classList.add('streaming-active');
             streamNode.actionBar.style.display = 'none'; // Hide actions while streaming
+            
+            // Inject beautiful typing indicator initially
+            streamNode.contentNode.innerHTML = `
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            `;
+            
             chatBox.appendChild(streamNode.wrapper);
             
             setTimeout(() => { chatBox.scrollTop = chatBox.scrollHeight; }, 50);
             
             let fullAssistantText = "";
+            let assistantImages = [];
+            let hasStartedStreaming = false; // Flag to check if text has started
 
             try {
+                // Drop local 'images' keys from mapped payload to match API spec
+                const apiMessages = messageHistory.map(m => ({ role: m.role, content: m.content }));
+
                 const response = await fetch(`${baseUrl}/v1/chat/completions`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
                     body: JSON.stringify({
                         model: model,
-                        messages: messageHistory,
-                        stream: true,
+                        messages: apiMessages,
+                        stream: useStream,
                         temperature: 0.7
                     })
                 });
@@ -762,42 +966,65 @@
                     throw new Error(err.detail || `HTTP error ${response.status}`);
                 }
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder("utf-8");
-                
-                let autoScroll = true;
-                chatBox.addEventListener('scroll', () => {
-                    autoScroll = chatBox.scrollHeight - chatBox.scrollTop <= chatBox.clientHeight + 50;
-                });
+                if (useStream) {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder("utf-8");
+                    
+                    let autoScroll = true;
+                    chatBox.addEventListener('scroll', () => {
+                        autoScroll = chatBox.scrollHeight - chatBox.scrollTop <= chatBox.clientHeight + 50;
+                    });
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    
-                    const chunkStr = decoder.decode(value, { stream: true });
-                    const lines = chunkStr.split('\n');
-                    
-                    for (let line of lines) {
-                        line = line.trim();
-                        if (line.startsWith('data: ')) {
-                            const dataStr = line.slice(6);
-                            if (dataStr === '[DONE]') break;
-                            
-                            try {
-                                const dataObj = JSON.parse(dataStr);
-                                const delta = dataObj.choices[0].delta.content;
-                                if (delta) {
-                                    fullAssistantText += delta;
-                                    streamNode.contentNode.innerHTML = marked.parse(fullAssistantText);
-                                    if(autoScroll) chatBox.scrollTop = chatBox.scrollHeight;
-                                }
-                            } catch (e) { } // Ignore split chunks
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        
+                        const chunkStr = decoder.decode(value, { stream: true });
+                        const lines = chunkStr.split('\n');
+                        
+                        for (let line of lines) {
+                            line = line.trim();
+                            if (line.startsWith('data: ')) {
+                                const dataStr = line.slice(6);
+                                if (dataStr === '[DONE]') break;
+                                
+                                try {
+                                    const dataObj = JSON.parse(dataStr);
+                                    const delta = dataObj.choices[0].delta;
+                                    
+                                    if (delta.content) {
+                                        if (!hasStartedStreaming) {
+                                            streamNode.contentNode.innerHTML = ''; // Clear typing dots
+                                            hasStartedStreaming = true;
+                                        }
+                                        fullAssistantText += delta.content;
+                                        streamNode.contentNode.innerHTML = marked.parse(fullAssistantText);
+                                        if(autoScroll) chatBox.scrollTop = chatBox.scrollHeight;
+                                    }
+                                    
+                                    // Live Extraction of streaming images
+                                    if (delta.images && delta.images.length > 0) {
+                                        delta.images.forEach(img => {
+                                            const imgUrl = typeof img === 'string' ? img : img.url;
+                                            if (!assistantImages.find(e => (typeof e === 'string' ? e : e.url) === imgUrl)) {
+                                                assistantImages.push(img);
+                                            }
+                                        });
+                                    }
+                                } catch (e) { } // Ignore split chunks
+                            }
                         }
                     }
+                } else {
+                    // Non-Streaming Fallback
+                    const data = await response.json();
+                    const msg = data.choices[0].message;
+                    fullAssistantText = msg.content || "";
+                    assistantImages = msg.images || [];
                 }
 
                 // Push final content to history state
-                messageHistory.push({ role: "assistant", content: fullAssistantText });
+                messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages });
                 saveChatState();
 
             } catch (error) {
@@ -812,7 +1039,7 @@
                 sendBtn.disabled = messageInput.value.trim() === '' && !selectedImageBase64;
                 messageInput.focus();
                 
-                // Final full re-render ensures actions & Monaco load perfectly
+                // Final full re-render ensures actions, Monaco, and Image Carousels load perfectly
                 renderChat();
             }
         }

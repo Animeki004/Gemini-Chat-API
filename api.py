@@ -200,14 +200,29 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                         rid = result.get("response_id")
                         chid = result.get("choice_id")
                         
-                        # Emit the live text chunk
-                        if chunk_text:
+                        # Extract and format images securely for JSON serialization
+                        raw_imgs = result.get("images", [])
+                        safe_imgs = []
+                        for img in raw_imgs:
+                            if hasattr(img, 'url'):
+                                safe_imgs.append({"url": img.url, "title": getattr(img, 'title', 'Image')})
+                            elif isinstance(img, dict) and 'url' in img:
+                                safe_imgs.append({"url": img['url'], "title": img.get('title', 'Image')})
+                        
+                        # Emit the live text chunk and images
+                        if chunk_text or safe_imgs:
+                            delta_data = {}
+                            if chunk_text:
+                                delta_data["content"] = chunk_text
+                            if safe_imgs:
+                                delta_data["images"] = safe_imgs
+                                
                             chunk_json = {
                                 "id": f"chatcmpl-{uuid.uuid4().hex}",
                                 "object": "chat.completion.chunk",
                                 "created": int(time.time()),
                                 "model": request.model,
-                                "choices": [{"index": 0, "delta": {"content": chunk_text}, "finish_reason": None}]
+                                "choices": [{"index": 0, "delta": delta_data, "finish_reason": None}]
                             }
                             yield f"data: {json.dumps(chunk_json)}\n\n"
 
@@ -255,12 +270,21 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 
             final_content = extract_text(raw_content).strip()
 
+            # Extract images for non-streaming mode
+            raw_imgs = response.get("images", [])
+            safe_imgs = []
+            for img in raw_imgs:
+                if hasattr(img, 'url'):
+                    safe_imgs.append({"url": img.url, "title": getattr(img, 'title', 'Image')})
+                elif isinstance(img, dict) and 'url' in img:
+                    safe_imgs.append({"url": img['url'], "title": img.get('title', 'Image')})
+
             return {
                 "id": f"chatcmpl-{uuid.uuid4().hex}",
                 "object": "chat.completion",
                 "created": int(time.time()),
                 "model": request.model,
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content}, "finish_reason": "stop"}]
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content, "images": safe_imgs}, "finish_reason": "stop"}]
             }
 
     except HTTPException:
@@ -279,3 +303,4 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 send_admin_alert("Cookies expired! Notifying Chrome Extension Auto-Healer to execute payload...")
                 
         raise HTTPException(status_code=500, detail=error_str)
+    
