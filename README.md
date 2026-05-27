@@ -1,224 +1,293 @@
-# Gemini Client API
+💠 Gemini Nexus System (Gemini-to-OpenAI API Proxy)
 
-This Python package provides a client for interacting with Google's Gemini API. It is built using `curl_cffi` for efficient and impersonated HTTP requests.
+An Advanced, Stealthy Reverse Proxy converting Google Gemini's Web UI into a fully compatible OpenAI REST API.
 
-## Features
+Gemini Nexus is a high-performance, production-grade system designed to bridge the gap between Google's powerful (and free) Gemini Web UI and the massive ecosystem of tools built for OpenAI. By employing advanced TLS fingerprint bypassing, automated session management, and a robust Telegram command center, Gemini Nexus allows you to use Google's cutting-edge models in any OpenAI-compatible application, UI, or agent.
 
-- Asynchronous support using `asyncio`.
-- Synchronous wrapper for ease of use.
-- Conversation management (save, load).
-- File and image uploading.
-- Support for various Gemini models.
-- Image object handling (WebImage, GeneratedImage) with save functionality.
-- Proxy support.
+📜 Project Origins & Acknowledgements
 
-## Installation
+This project was initially inspired by and built upon the core concepts of the OEvortex/Gemini-Chat-API repository.
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository_url>
-    cd <repository_directory>
-    ```
-2.  **Install dependencies:**
-    It is recommended to use a virtual environment.
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
-    pip install -r requirements.txt
-    ```
-    (Ensure `requirements.txt` includes `curl_cffi`, `pydantic`, and `rich`.)
+How we upgraded it: While the original repository provided a great foundational wrapper, this Animeki004 fork has been massively overhauled to act as a secure, standalone production server. We introduced a FastAPI backend perfectly mirroring the OpenAI schema, an SQLite-backed session/API key manager, a fully-fledged Telegram Bot for remote server administration, a Monaco-powered Web UI, and a secure "auto-healing" endpoint for automated cookie rotation.
 
-    Alternatively, if a `setup.py` is provided:
-    ```bash
-    pip install .
-    ```
+🧠 How It Works (Deep Dive)
 
-## Usage
+Google actively blocks standard automated requests to its Gemini Web UI using advanced TLS fingerprinting and behavioral analysis. Here is how Gemini Nexus bypasses these restrictions and operates:
 
-### Prerequisites
+TLS Impersonation (curl_cffi): Standard Python libraries like requests or aiohttp have distinct TLS signatures that Google immediately flags. We utilize curl_cffi to mimic the exact cryptographic handshakes of a legitimate Google Chrome browser (e.g., chrome110).
 
-You need to obtain your `__Secure-1PSID` and `__Secure-1PSIDTS` cookies from Google Gemini.
+Authentication via Cookies: The system uses your actual Google account's __Secure-1PSID and __Secure-1PSIDTS cookies to authenticate requests.
 
-1.  Go to [https://gemini.google.com/app](https://gemini.google.com/app)
-2.  Open your browser's developer tools (usually by pressing F12).
-3.  Go to the "Application" (or "Storage") tab.
-4.  Under "Cookies" -> "https://gemini.google.com", find the `__Secure-1PSID` and `__Secure-1PSIDTS` cookies.
-5.  Create a JSON file (e.g., `cookies.json`) with the following format:
+OpenAI Schema Translation: The FastAPI layer intercepts incoming OpenAI-formatted requests (like JSON arrays of {"role": "user", "content": "..."} messages), parses the context, forwards it to Gemini using the stealth layer, and packages Gemini's response back into an OpenAI-compliant JSON format (chat.completion objects).
 
-    ```json
-    [
-        {
-            "name": "__Secure-1PSID",
-            "value": "YOUR___SECURE-1PSID_VALUE_HERE"
-        },
-        {
-            "name": "__Secure-1PSIDTS",
-            "value": "YOUR___SECURE-1PSIDTS_VALUE_HERE"
-        }
+Stateful Conversation Management: The SQLite database tracks conversation IDs (cid), response IDs (rid), and choice IDs (chid) mapped to your specific API keys, ensuring Gemini remembers the context of the conversation just like standard ChatGPT.
+
+✨ Comprehensive Feature Set
+
+🔄 100% OpenAI API Compatibility
+
+Drop-in replacement for the standard OpenAI endpoints (/v1/chat/completions and /v1/models). Any software, extension, or library (like LangChain, AutoGPT, or the official OpenAI Python/Node SDKs) that works with ChatGPT will work with Gemini Nexus out of the box.
+
+📱 Telegram Command Center
+
+Manage your entire API infrastructure directly from your phone. The integrated Telegram bot allows the system administrator to:
+
+Generate, revoke, and manage standard & admin API keys.
+
+Set session timeouts and track model permissions per key.
+
+Update Google authentication cookies on the fly without restarting the server.
+
+Chat directly with Gemini through a highly robust Markdown-to-Telegram-HTML parser.
+
+🏥 Secure Auto-Healing Architecture
+
+Cookies expire—it's inevitable. Gemini Nexus expects this. The system features a built-in distress signal and a secure /v1/admin/cookies endpoint. Companion tools (like Chrome Extensions) can securely intercept authentication failures and automatically push fresh cookies to the server with zero downtime or human intervention.
+
+💻 Monaco Editor Web UI
+
+Includes a fully responsive, dark-mode Web UI (index.html) featuring Microsoft's Monaco Editor (the engine behind VS Code). It offers syntax highlighting, native copy-to-clipboard functionality, and dynamic layout scaling for code blocks generated by the AI.
+
+🖼️ Multimodal & Image Support
+
+Natively parses image URLs returned by Gemini and supports uploading local images directly through the API, replicating vision-model capabilities.
+
+📋 Prerequisites
+
+Before you begin, ensure you have the following requirements met:
+
+Python Environment: Python 3.8 or higher installed on your system (or Docker installed).
+
+Telegram Account: To manage the server.
+
+Telegram Bot Token: Message @BotFather on Telegram, create a new bot, and copy the HTTP API Token.
+
+Telegram User ID: Message @userinfobot to get your personal integer ID. This ensures only you can access the admin commands.
+
+Google Account: A standard Google account to extract the initial session cookies.
+
+🚀 Step-by-Step Installation
+
+Phase 1: Clone the Repository
+
+Clone the specific Animeki004 repository which contains all the upgraded features:
+
+git clone [https://github.com/Animeki004/Gemini-Chat-API.git](https://github.com/Animeki004/Gemini-Chat-API.git)
+cd Gemini-Chat-API
+
+
+Phase 2: Set Up Virtual Environment (Recommended)
+
+It is highly recommended to isolate the project dependencies using a virtual environment:
+
+# Create the virtual environment
+python -m venv .venv
+
+# Activate the virtual environment
+# On Windows:
+.venv\Scripts\activate
+# On macOS/Linux:
+source .venv/bin/activate
+
+
+Phase 3: Install Dependencies
+
+pip install -r requirements.txt
+
+
+Phase 4: Configure Environment Variables
+
+Create a .env file in the root directory of the project and populate it with your Telegram credentials:
+
+TELEGRAM_BOT_TOKEN="your_telegram_bot_token_here"
+ADMIN_ID="your_personal_telegram_user_id"
+PORT=8000
+
+
+Phase 5: Start the Server
+
+python main.py
+
+
+Upon the first run, the system will automatically generate the data/database.db file and initialize the SQLite tables.
+
+🐳 Docker Deployment (Alternative)
+
+If you prefer containerization, you can run Gemini Nexus effortlessly using Docker.
+
+# Build the image
+docker build -t gemini-nexus .
+
+# Run the container (Mapping port 8000 and the data directory for persistence)
+docker run -d -p 8000:8000 -v $(pwd)/data:/app/data --env-file .env --name gemini-nexus gemini-nexus
+
+
+🍪 System Initialization (Authentication)
+
+For the API to function, it needs your session cookies from the Gemini Web UI. You only need to do this once (or whenever your cookies naturally expire).
+
+Open a regular browser window (Chrome/Edge/Firefox) and log into gemini.google.com.
+
+Open Developer Tools (Press F12 or Right Click -> Inspect).
+
+Navigate to the Application tab (or Storage in Firefox).
+
+In the left sidebar, expand Cookies and select https://gemini.google.com.
+
+Find and copy the values for these two specific cookies:
+
+__Secure-1PSID
+
+__Secure-1PSIDTS (Note: If this doesn't exist for your account, you can pass "none" in the bot)
+
+Open your newly created Telegram Bot and click Start.
+
+Send the command /setcookies. The bot will interactively ask for your 1PSID and 1PSIDTS values.
+
+Once saved, the database is updated, and your API is fully operational!
+
+🤖 Telegram Command Reference
+
+The bot acts as your graphical interface for the server backend. Only the user matching the ADMIN_ID in the .env file can execute these commands.
+
+Command
+
+Description
+
+/start or /help
+
+Display the main help menu and system status.
+
+/chat
+
+Enter direct-chat mode to talk to Gemini directly via Telegram.
+
+/end
+
+Exit direct-chat mode.
+
+/setcookies
+
+Interactive wizard to update Google session cookies.
+
+/newkey [name]
+
+Generate a standard API key. You will be prompted to assign model access.
+
+/newadminkey [name]
+
+Generate an Admin API key (Used for the /v1/admin/cookies auto-heal route).
+
+/listkeys
+
+View all active keys, their roles, and session timeouts.
+
+/settimeout <key> <hrs>
+
+Change how long an API key's conversation context is remembered.
+
+/revoke <key>
+
+Instantly kill an API key's access.
+
+/models
+
+List all available Gemini models you can switch between in chat.
+
+/health
+
+Run a system diagnostic and test connection to Google's servers.
+
+/backup
+
+Securely download your database.db and session JSON files directly to your phone.
+
+🔌 API Integration Examples
+
+Once your server is running and you have generated an API key via the Telegram bot (/newkey), you can use it exactly like the official OpenAI API.
+
+1. Standard cURL Request
+
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-your-generated-api-key" \
+  -d '{
+    "model": "gemini-1.5-pro",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Explain quantum computing in one paragraph."
+      }
     ]
-    ```
-or you can use auto_cookie=True in chatbot to fetch the cookie auto.
-```python
-from gemini_client import Chatbot, Model
-# Initialize the chatbot
-try:
-    chatbot = Chatbot(auto_cookie=True, model=Model.G_2_5_PRO)
-except Exception as e:
-    print(f"Error initializing chatbot: {e}")
-    exit()
-```
-### Synchronous Chatbot
+  }'
 
-```python
-from gemini_client import Chatbot, Model
 
-# Initialize the chatbot
-try:
-    chatbot = Chatbot(cookie_path="cookies.json", model=Model.G_2_5_PRO)
-except Exception as e:
-    print(f"Error initializing chatbot: {e}")
-    exit()
+2. Python (Using official openai library)
 
-# Ask a question
-try:
-    response = chatbot.ask("Hello, how are you today?")
-    if response and not response.get("error"):
-        print("Gemini:", response["content"])
+Because Gemini Nexus perfectly mimics the OpenAI spec, you can use the official libraries by simply changing the base_url.
 
-        # Handling images in response
-        if response.get("images"):
-            print("\nImages found:")
-            for img_data in response["images"]:
-                # Note: The 'images' in the response are dicts.
-                # To use the Image class features (like saving), you'd typically
-                # instantiate Image objects from these dicts if needed,
-                # especially if you want to use the save method directly on an Image object.
-                # For generated images, you'd need to pass cookies to GeneratedImage.
-                print(f"- Title: {img_data.get('title', '[Image]')}, URL: {img_data.get('url')}, Alt: {img_data.get('alt')}")
-    else:
-        print("Error or no content in response:", response)
+from openai import OpenAI
 
-except Exception as e:
-    print(f"Error during ask: {e}")
+# Point the client to your Gemini Nexus server
+client = OpenAI(
+    api_key="sk-your-generated-api-key",
+    base_url="http://localhost:8000/v1" 
+)
 
-# Ask a question with an image
-try:
-    # Ensure 'image.png' exists or provide a valid path/bytes
-    response_with_image = chatbot.ask("What is in this image?", image="path/to/your/image.png")
-    if response_with_image and not response_with_image.get("error"):
-        print("\nGemini (with image):", response_with_image["content"])
-    else:
-        print("Error or no content in response with image:", response_with_image)
-except FileNotFoundError:
-    print("Image file not found. Skipping ask with image example.")
-except Exception as e:
-    print(f"Error during ask with image: {e}")
+response = client.chat.completions.create(
+    model="gemini-1.5-pro",
+    messages=[
+        {"role": "system", "content": "You are a helpful coding assistant."},
+        {"role": "user", "content": "Write a python script to calculate Fibonacci numbers."}
+    ]
+)
 
-# Save a conversation
-chatbot.save_conversation("conversations.json", "my_chat_session")
-print("\nConversation 'my_chat_session' saved.")
+print(response.choices[0].message.content)
 
-# Load a conversation
-if chatbot.load_conversation("conversations.json", "my_chat_session"):
-    print("Conversation 'my_chat_session' loaded.")
-    # Continue chatting in the loaded conversation
-    response_continued = chatbot.ask("What was our last topic?")
-    if response_continued and not response_continued.get("error"):
-        print("Gemini (continued):", response_continued["content"])
-    else:
-        print("Error or no content in continued response:", response_continued)
-```
 
-### Asynchronous Chatbot
+3. Using the Built-in Web UI
 
-```python
-import asyncio
-from gemini_client import AsyncChatbot, Model
-from gemini_client.utils import load_cookies # For loading cookies explicitly
+Simply open index.html in any web browser.
 
-async def main():
-    try:
-        secure_1psid, secure_1psidts = load_cookies("cookies.json")
-        async_chatbot = await AsyncChatbot.create(
-            secure_1psid=secure_1psid,
-            secure_1psidts=secure_1psidts,
-            model=Model.G_2_5_PRO
-        )
-    except Exception as e:
-        print(f"Error initializing async chatbot: {e}")
-        return
+Enter your server URL (http://localhost:8000 or your remote domain).
 
-    # Ask a question
-    try:
-        response = await async_chatbot.ask("Hello, asynchronously!")
-        if response and not response.get("error"):
-            print("Gemini (async):", response["content"])
-        else:
-            print("Error or no content in async response:", response)
-    except Exception as e:
-        print(f"Error during async ask: {e}")
+Enter your generated API Key.
 
-    # Example of saving an image if one was returned and properly parsed into an Image object
-    # This part is illustrative, actual image saving depends on how you handle the response['images']
-    # if response and response.get("images"):
-    #     from gemini_client import WebImage # or GeneratedImage
-    #     first_image_data = response["images"][0]
-    #     # Assuming it's a web image for this example
-    #     img_obj = WebImage(url=first_image_data["url"], title=first_image_data.get("title"), alt=first_image_data.get("alt"))
-    #     # For GeneratedImage, you would need:
-    #     # img_obj = GeneratedImage(url=..., cookies=async_chatbot.session.cookies.get_dict())
-    #     try:
-    #         saved_path = await img_obj.save(path="downloaded_async_images", verbose=True)
-    #         if saved_path:
-    #             print(f"Image saved to: {saved_path}")
-    #     except Exception as e:
-    #         print(f"Error saving image: {e}")
+Click "Fetch Authorized Models".
 
-    # Close the session when done (important for AsyncSession)
-    await async_chatbot.session.close()
+Enjoy a beautiful, persistent chat interface with full Monaco code-editor support for coding tasks.
 
-if __name__ == "__main__":
-    # Example of how to run the async main function
-    # In a real application, you might use asyncio.run(main())
-    # For simplicity in this README, we'll just call it if this script itself was run.
-    # To run this example:
-    # 1. Save this code as a Python file (e.g., example_async.py)
-    # 2. Ensure cookies.json is present
-    # 3. Run `python example_async.py`
-    #
-    # For this README, we'll just define it.
-    # To run:
-    # loop = asyncio.get_event_loop()
-    # try:
-    #     loop.run_until_complete(main())
-    # except KeyboardInterrupt:
-    #     print("Exiting...")
-    # finally:
-    #     # Clean up any pending tasks
-    #     for task in asyncio.all_tasks(loop):
-    #         task.cancel()
-    #     try:
-    #         loop.run_until_complete(loop.shutdown_asyncgens())
-    #     finally:
-    #         loop.close()
-    pass # Placeholder for running the async main if this were a runnable script
-```
+📂 Repository Structure
 
-## Modules
+GEMINI-CHAT-API/
+├── data/                      # Persistent storage directory (Auto-generated)
+│   ├── database.db            # SQLite database for keys, limits & sessions
+│   └── telegram_sessions.json # Saved Telegram chat states
+├── gemini_client/             # Core Gemini Web UI Wrapper
+│   ├── __init__.py            # Package initialization
+│   ├── constants.py           # Headers, endpoints, and language codes
+│   ├── cookie_manager.py      # Local browser cookie extraction
+│   ├── core.py                # Async request handling & streaming (`curl_cffi`)
+│   ├── enums.py               # Model and Endpoint enumerations
+│   ├── images.py              # Image uploading and parsing logic
+│   └── utils.py               # Utility functions (upload, auth)
+├── legacy/                    # Deprecated/older versions of scripts
+├── .env                       # Environment variables (Tokens/IDs)
+├── .gitignore                 # Git ignore rules
+├── admin_bot.py               # Telegram administration bot layer
+├── api.py                     # FastAPI server (OpenAI spec endpoints)
+├── database.py                # Database initialization & operations
+├── Dockerfile                 # Docker container configuration
+├── index.html                 # Web UI / API Tester Dashboard
+├── LICENSE                    # Project license
+├── main.py                    # Application entry point (Runs API & Bot concurrently)
+├── README.md                  # Project documentation
+├── requirements.txt           # Python dependencies
+└── test.py                    # Local testing script
 
-The package is structured as follows:
 
--   `gemini_client/`: Main package directory.
-    -   `__init__.py`: Makes the directory a package and exports key components.
-    -   `core.py`: Contains `Chatbot` and `AsyncChatbot` classes.
-    -   `enums.py`: Defines `Endpoint`, `Headers`, and `Model` enums.
-    -   `images.py`: Defines `Image`, `WebImage`, and `GeneratedImage` classes for image handling.
-    -   `utils.py`: Contains utility functions like `upload_file` and `load_cookies`.
+⚖️ Disclaimer & Legal
 
-## Contributing
+Educational Purposes Only. This project is an unofficial, third-party wrapper designed to study network communication, reverse engineering of web APIs, and TLS fingerprinting. It is not affiliated with, endorsed by, or sponsored by Google LLC or OpenAI.
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue.
-
-## License
-
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+Using automated tools to access web interfaces may violate Google's Terms of Service. The maintainers of this repository are not responsible for any repercussions, account bans, or damages resulting from the use of this software. Use responsibly and at your own risk.
