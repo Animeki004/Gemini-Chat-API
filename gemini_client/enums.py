@@ -37,7 +37,7 @@ class Headers(Enum):
     ROTATE_COOKIES = {
         "Content-Type": "application/json",
     }
-    UPLOAD = {"Push-ID": "feeds/mcudyrk2a4khkz"}
+    UPLOAD = {"Push-ID": "feeds/mcudyrk2a4khkz","X-Goog-Upload-Protocol": "resumable",}
 
 class Model(Enum):
     """
