@@ -82,23 +82,9 @@
             </div>
         </div>
 
-        <!-- Input Area with Image Attachment Support -->
-        <div class="border-t border-gray-700 bg-gray-800 p-4 shadow-lg flex flex-col">
-            <!-- Image Preview Container -->
-            <div id="imagePreviewContainer" class="hidden pb-3 ml-2">
-                <div class="relative inline-block">
-                    <img id="imagePreview" class="h-20 rounded-md border border-gray-600 object-cover shadow-sm">
-                    <button type="button" onclick="removeImage()" class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-500 shadow-md font-bold transition-colors">✕</button>
-                </div>
-            </div>
-
-            <div class="max-w-4xl mx-auto flex gap-3 relative w-full">
-                <!-- Attach Button -->
-                <button type="button" id="attachBtn" class="flex-shrink-0 p-3 bg-gray-700 text-gray-300 rounded-xl hover:bg-gray-600 transition-colors border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                </button>
-                <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp" class="hidden">
-
+        <!-- Input Area -->
+        <div class="border-t border-gray-700 bg-gray-800 p-4 shadow-lg">
+            <div class="max-w-4xl mx-auto flex gap-3 relative">
                 <textarea id="messageInput" rows="1" placeholder="Type your message here..." class="w-full pl-4 pr-12 py-3 bg-gray-700 border border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100 placeholder-gray-400 resize-none shadow-inner"></textarea>
                 
                 <button type="button" onclick="sendMessage()" id="sendBtn" class="absolute right-2 bottom-2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -254,7 +240,6 @@
     <script>
         // --- State Management ---
         let messageHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
-        let currentBase64Image = null;
 
         // UI Elements
         const apiUrlInput = document.getElementById('apiUrl');
@@ -264,30 +249,6 @@
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const emptyState = document.getElementById('emptyState');
-        const imageInput = document.getElementById('imageInput');
-        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
-        const imagePreview = document.getElementById('imagePreview');
-        const attachBtn = document.getElementById('attachBtn');
-
-        // Image Attachment Logic
-        attachBtn.addEventListener('click', () => imageInput.click());
-        imageInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                currentBase64Image = event.target.result;
-                imagePreview.src = currentBase64Image;
-                imagePreviewContainer.classList.remove('hidden');
-            };
-            reader.readAsDataURL(file);
-        });
-
-        function removeImage() {
-            currentBase64Image = null;
-            imageInput.value = '';
-            imagePreviewContainer.classList.add('hidden');
-        }
 
         // Initial setup on page load
         window.onload = () => {
@@ -320,18 +281,10 @@
                 fetchModels(true); 
             }
             
-            // Render History
             if (messageHistory.length > 0) {
                 emptyState.style.display = 'none';
                 messageHistory.forEach(msg => {
-                    let displayContent = msg.content;
-                    if (Array.isArray(msg.content)) {
-                        const txtPart = msg.content.find(c => c.type === 'text');
-                        const imgPart = msg.content.find(c => c.type === 'image_url');
-                        const imgHtml = imgPart ? `<img src="${imgPart.image_url.url}" class="max-w-xs rounded-md mb-2 border border-gray-600">\n\n` : '';
-                        displayContent = imgHtml + (txtPart ? txtPart.text : '');
-                    }
-                    appendMessage(msg.role, displayContent, true); 
+                    appendMessage(msg.role, msg.content, true); 
                 });
             }
         };
@@ -354,11 +307,7 @@
         });
 
         function saveChatState() {
-            try {
-                localStorage.setItem('chatHistory', JSON.stringify(messageHistory));
-            } catch (e) {
-                console.warn('Local storage quota exceeded. History not saved to prevent crashing.');
-            }
+            localStorage.setItem('chatHistory', JSON.stringify(messageHistory));
         }
 
         function showToast(message, isError = true) {
@@ -444,11 +393,7 @@
             chatBox.appendChild(msgDiv);
 
             if (role === 'user') {
-                if (content.includes('<img')) {
-                    bubbleDiv.innerHTML = content.replace(/\n/g, '<br>'); // Render our safe internal HTML
-                } else {
-                    bubbleDiv.textContent = content;
-                }
+                bubbleDiv.textContent = content;
                 chatBox.scrollTop = chatBox.scrollHeight;
             } else {
                 if (instantLoad) {
@@ -510,7 +455,7 @@
             const apiKey = apiKeyInput.value.trim();
             const model = modelSelect.value;
 
-            if (!text && !currentBase64Image) return;
+            if (!text) return;
             if (!apiKey) return showToast("API Key is required");
             if (!model) return showToast("Please fetch and select a model first");
 
@@ -518,23 +463,11 @@
             messageInput.style.height = 'auto';
             sendBtn.disabled = true;
 
-            let messageContent = text;
-            let displayContent = text;
-
-            if (currentBase64Image) {
-                messageContent = [
-                    { type: "text", text: text || "Describe this image" },
-                    { type: "image_url", image_url: { url: currentBase64Image } }
-                ];
-                displayContent = `<img src="${currentBase64Image}" class="max-w-xs rounded-md mb-2 border border-gray-600">\n\n${text}`;
-            }
-
-            messageHistory.push({ role: "user", content: messageContent });
+            messageHistory.push({ role: "user", content: text });
             saveChatState();
-            appendMessage('user', displayContent, true);
+            appendMessage('user', text, true);
 
             const loadingId = addLoadingIndicator();
-            removeImage(); // Clear preview after sending
 
             try {
                 const response = await fetch(`${baseUrl}/v1/chat/completions`, {

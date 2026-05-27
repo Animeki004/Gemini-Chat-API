@@ -14,7 +14,7 @@ class Endpoint(Enum):
     INIT = "https://gemini.google.com/app"
     GENERATE = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate"
     ROTATE_COOKIES = "https://accounts.google.com/RotateCookies"
-    UPLOAD = "https://push.clients6.google.com/upload"
+    UPLOAD = "https://content-push.googleapis.com/upload"
 
 class Headers(Enum):
     """
