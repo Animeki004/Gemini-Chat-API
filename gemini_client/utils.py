@@ -9,7 +9,7 @@ from typing import Dict, Tuple, Union, Optional
 # as curl_cffi's `raise_for_status()` raises its own exceptions, not `requests` exceptions.
 from curl_cffi import CurlError, CurlMime
 from curl_cffi.requests import AsyncSession
-from curl_cffi.requests.errors import RequestException, HTTPError, Timeout
+from requests.exceptions import RequestException, HTTPError, Timeout
 
 from rich.console import Console
 
