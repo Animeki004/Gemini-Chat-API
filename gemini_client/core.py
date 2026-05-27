@@ -323,12 +323,12 @@ class AsyncChatbot:
                 yield {"content": f"Error uploading image: {e}", "chunk": f"Error uploading image: {e}", "error": True}
                 return
 
-        # Prepare Conversation State Array
-        if self.conversation_id and self.response_id and self.choice_id:
+        # Prepare Conversation State Array (Relaxed check)
+        if self.conversation_id:
             conversation_state = [
                 self.conversation_id,
-                self.response_id,
-                self.choice_id,
+                self.response_id or "",
+                self.choice_id or "",
                 None, None, None, None, None, None, ""
             ]
         else:
@@ -465,6 +465,7 @@ class AsyncChatbot:
                                             "chunk": chunk_delta,     # THE LIVE DELTA CHUNK (Use this for your fast UI typing!)
                                             "conversation_id": conversation_id,
                                             "response_id": response_id,
+                                            "choice_id": choice_id,   # ADDED: choice_id required for persistent streaming
                                             "images": images,
                                             "error": False,
                                         }
@@ -495,12 +496,12 @@ class AsyncChatbot:
                 console.log(f"[red]Error uploading image: {e}[/red]")
                 return {"content": f"Error uploading image: {e}", "error": True}
 
-        # Prepare Conversation State Array
-        if self.conversation_id and self.response_id and self.choice_id:
+        # Prepare Conversation State Array (Relaxed check)
+        if self.conversation_id:
             conversation_state = [
                 self.conversation_id,
-                self.response_id,
-                self.choice_id,
+                self.response_id or "",
+                self.choice_id or "",
                 None, None, None, None, None, None, ""
             ]
         else:
@@ -661,6 +662,7 @@ class AsyncChatbot:
                     "content": content,
                     "conversation_id": conversation_id,
                     "response_id": response_id,
+                    "choice_id": choice_id,
                     "factualityQueries": factualityQueries,
                     "textQuery": textQuery,
                     "choices": choices,
