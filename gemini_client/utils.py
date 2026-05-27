@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 import json
+import uuid
 from pathlib import Path
 from typing import Dict, Tuple, Union, Optional
 
 from curl_cffi import CurlError
-from curl_cffi.requests import AsyncSession, Multipart
+from curl_cffi.requests import AsyncSession
 from requests.exceptions import RequestException, HTTPError, Timeout
 
 from rich.console import Console
@@ -56,18 +57,28 @@ async def upload_file(
         # Use AsyncSession from curl_cffi
         async with AsyncSession(
             proxies=proxies_dict,
-            impersonate=impersonate,
-            headers=Headers.UPLOAD.value # Pass headers directly
+            impersonate=impersonate
             # follow_redirects is handled automatically by curl_cffi
         ) as client:
             
-            # FIXED: curl_cffi requires a Multipart object instance, not a dictionary.
-            mp = Multipart()
-            mp.add_file("file", file_content, filename="upload.png", content_type="image/png")
+            # FOOLPROOF FIX: Manually construct the multipart/form-data payload.
+            # This completely bypasses the missing 'Multipart' class in various curl_cffi versions.
+            boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
+            
+            body = bytearray()
+            body.extend(f"--{boundary}\r\n".encode("utf-8"))
+            body.extend(f'Content-Disposition: form-data; name="file"; filename="upload.png"\r\n'.encode("utf-8"))
+            body.extend(b"Content-Type: image/png\r\n\r\n")
+            body.extend(file_content)
+            body.extend(f"\r\n--{boundary}--\r\n".encode("utf-8"))
+            
+            headers = Headers.UPLOAD.value.copy()
+            headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
 
             response = await client.post(
                 url=Endpoint.UPLOAD.value,
-                multipart=mp,
+                data=body,
+                headers=headers,
             )
             response.raise_for_status() # Raises HTTPError for bad responses
             return response.text
