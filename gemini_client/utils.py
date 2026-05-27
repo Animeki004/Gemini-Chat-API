@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, Tuple, Union, Optional
 
 from curl_cffi import CurlError
-from curl_cffi.requests import AsyncSession
+from curl_cffi.requests import AsyncSession, Multipart
 from requests.exceptions import RequestException, HTTPError, Timeout
 
 from rich.console import Console
@@ -61,11 +61,13 @@ async def upload_file(
             # follow_redirects is handled automatically by curl_cffi
         ) as client:
             
-            # FIXED: curl_cffi no longer supports `files=`. It requires `multipart=`.
-            # We pass a tuple containing (filename, file_content, mime_type) to ensure proper form boundary parsing.
+            # FIXED: curl_cffi requires a Multipart object instance, not a dictionary.
+            mp = Multipart()
+            mp.add_file("file", file_content, filename="upload.png", content_type="image/png")
+
             response = await client.post(
                 url=Endpoint.UPLOAD.value,
-                multipart={"file": ("upload.png", file_content, "image/png")},
+                multipart=mp,
             )
             response.raise_for_status() # Raises HTTPError for bad responses
             return response.text
