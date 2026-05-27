@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import json
+import mimetypes
 from pathlib import Path
 from typing import Dict, Tuple, Union, Optional
 
 from curl_cffi import CurlError
 from curl_cffi.requests import AsyncSession
-from requests.exceptions import RequestException, HTTPError, Timeout # Added Timeout
+from requests.exceptions import RequestException, HTTPError, Timeout
 
 from rich.console import Console
 
@@ -20,7 +21,7 @@ async def upload_file(
     impersonate: str = "chrome110"
 ) -> str:
     """
-    Uploads a file to Google's Gemini server using curl_cffi and returns its identifier.
+    Uploads a file to Google's Gemini server using curl_cffi (Resumable Upload) and returns its identifier.
 
     Args:
         file (bytes | str | Path): File data in bytes or path to the file to be uploaded.
@@ -29,49 +30,95 @@ async def upload_file(
 
     Returns:
         str: Identifier of the uploaded file.
-
-    Raises:
-        HTTPError: If the upload request fails.
-        RequestException: For other network-related errors.
-        FileNotFoundError: If the file path does not exist.
     """
-    # Handle file input
+    # Handle file input dynamically
     if not isinstance(file, bytes):
         file_path = Path(file)
         if not file_path.is_file():
             raise FileNotFoundError(f"File not found at path: {file}")
+
+        filename = file_path.name
+        mime_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+
         with open(file_path, "rb") as f:
             file_content = f.read()
     else:
+        filename = "upload.bin"
+        mime_type = "application/octet-stream"
         file_content = file
 
-    # Prepare proxy dictionary for curl_cffi
+    file_size = len(file_content)
     proxies_dict = None
+
     if isinstance(proxy, str):
-        proxies_dict = {"http": proxy, "https": proxy} # curl_cffi uses http/https keys
+        proxies_dict = {"http": proxy, "https": proxy}
     elif isinstance(proxy, dict):
-        proxies_dict = proxy # Assume it's already in the correct format
+        proxies_dict = proxy
 
     try:
-        # Use AsyncSession from curl_cffi
         async with AsyncSession(
             proxies=proxies_dict,
             impersonate=impersonate,
-            headers=Headers.UPLOAD.value # Pass headers directly
-            # follow_redirects is handled automatically by curl_cffi
         ) as client:
-            response = await client.post(
-                url=Endpoint.UPLOAD.value, # Use Endpoint enum
-                files={"file": file_content},
+
+            # 1. Start Resumable Session
+            start_headers = {
+                **Headers.UPLOAD.value,
+                "X-Goog-Upload-Command": "start",
+                "X-Goog-Upload-Header-Content-Length": str(file_size),
+                "X-Goog-Upload-Header-Content-Type": mime_type,
+            }
+
+            start_response = await client.post(
+                url=Endpoint.UPLOAD.value + "/",
+                headers=start_headers,
+                data="",
             )
-            response.raise_for_status() # Raises HTTPError for bad responses
-            return response.text
+            start_response.raise_for_status()
+
+            upload_url = (
+                start_response.headers.get("X-Goog-Upload-URL")
+                or start_response.headers.get("X-Goog-Upload-Control-URL")
+            )
+
+            if not upload_url:
+                raise Exception("Failed to obtain upload URL")
+
+            console.log("[green]Upload session started[/green]")
+
+            # 2. Upload and Finalize
+            upload_headers = {
+                **Headers.UPLOAD.value,
+                "X-Goog-Upload-Command": "upload, finalize",
+                "X-Goog-Upload-Offset": "0",
+            }
+
+            upload_response = await client.post(
+                url=upload_url,
+                headers=upload_headers,
+                data=file_content,
+            )
+            upload_response.raise_for_status()
+
+            response_text = upload_response.text.strip()
+
+            console.log("[green]Upload successful[/green]")
+            console.log(f"[cyan]Upload response:[/cyan] {response_text}")
+
+            return response_text
+
     except HTTPError as e:
-        console.log(f"[red]HTTP error during file upload: {e.response.status_code} {e}[/red]")
-        raise # Re-raise HTTPError
-    except (RequestException, CurlError) as e: # Catch CurlError as well
-        console.log(f"[red]Network error during file upload: {e}[/red]")
-        raise # Re-raise other request errors
+        console.log(f"[red]HTTP upload error:[/red] {e}")
+        raise
+    except Timeout as e:
+        console.log(f"[red]Upload timeout:[/red] {e}")
+        raise
+    except (RequestException, CurlError) as e:
+        console.log(f"[red]Network upload error:[/red] {e}")
+        raise
+    except Exception as e:
+        console.log(f"[red]Unexpected upload error:[/red] {e}")
+        raise
 
 def load_cookies(cookie_path: str) -> Tuple[str, str]:
     """
@@ -82,14 +129,11 @@ def load_cookies(cookie_path: str) -> Tuple[str, str]:
 
     Returns:
         tuple[str, str]: Tuple containing __Secure-1PSID and __Secure-1PSIDTS cookie values.
-
-    Raises:
-        Exception: If the file is not found, invalid, or required cookies are missing.
     """
     try:
-        with open(cookie_path, 'r', encoding='utf-8') as file: # Added encoding
+        with open(cookie_path, 'r', encoding='utf-8') as file:
             cookies = json.load(file)
-        # Handle potential variations in cookie names (case-insensitivity)
+            
         session_auth1 = next((item['value'] for item in cookies if item['name'].upper() == '__SECURE-1PSID'), None)
         session_auth2 = next((item['value'] for item in cookies if item['name'].upper() == '__SECURE-1PSIDTS'), None)
 
@@ -103,5 +147,5 @@ def load_cookies(cookie_path: str) -> Tuple[str, str]:
         raise Exception("Invalid JSON format in the cookie file.")
     except StopIteration as e:
         raise Exception(f"{e} Check the cookie file format and content.")
-    except Exception as e: # Catch other potential errors
+    except Exception as e: 
         raise Exception(f"An unexpected error occurred while loading cookies: {e}")
