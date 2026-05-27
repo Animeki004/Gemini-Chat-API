@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #########################################
-# Code Modified to use curl_cffi & robust text extraction
+# Code Modified to use curl_cffi & robust text extraction with Delta Streaming
 #########################################
 import asyncio
 import json
@@ -77,6 +77,15 @@ class Chatbot:
 
     def ask(self, message: str, image: Optional[Union[bytes, str, Path]] = None) -> dict: 
         return self.loop.run_until_complete(self.async_chatbot.ask(message, image=image))
+
+    def ask_stream(self, message: str, image: Optional[Union[bytes, str, Path]] = None):
+        """Synchronous wrapper to consume the async generator for streaming chunks."""
+        gen = self.async_chatbot.ask_stream(message, image=image)
+        while True:
+            try:
+                yield self.loop.run_until_complete(gen.__anext__())
+            except StopAsyncIteration:
+                break
 
 
 class AsyncChatbot:
@@ -311,7 +320,7 @@ class AsyncChatbot:
             try:
                 image_upload_id = await upload_file(image, proxy=self.proxies_dict, impersonate=self.impersonate)
             except Exception as e:
-                yield {"content": f"Error uploading image: {e}", "error": True}
+                yield {"content": f"Error uploading image: {e}", "chunk": f"Error uploading image: {e}", "error": True}
                 return
 
         # Prepare Conversation State Array
@@ -371,6 +380,9 @@ class AsyncChatbot:
             )
             resp.raise_for_status()
 
+            # Keeps track of the length of text we have already yielded so we can emit exact delta "chunks"
+            prev_content_length = 0
+
             async for line in resp.aiter_lines():
                 if isinstance(line, bytes):
                     line = line.decode('utf-8', errors='ignore')
@@ -400,6 +412,7 @@ class AsyncChatbot:
                                             if isinstance(item, str): return item
                                             if isinstance(item, list): return "".join(extract_text(x) for x in item if x is not None)
                                             return str(item) if item is not None else ""
+                                        
                                         content = extract_text(raw_content)
 
                                     images = []
@@ -442,20 +455,26 @@ class AsyncChatbot:
                                     self.response_id = response_id
                                     self.choice_id = choice_id
 
-                                    yield {
-                                        "content": content,
-                                        "conversation_id": conversation_id,
-                                        "response_id": response_id,
-                                        "images": images,
-                                        "error": False,
-                                    }
+                                    # DELTA CHUNKING LOGIC FOR LIVE STREAMING
+                                    chunk_delta = content[prev_content_length:]
+                                    prev_content_length = len(content)
+
+                                    if chunk_delta or images:  # Only yield if there's actually new text or images to show
+                                        yield {
+                                            "content": content,       # The complete, accumulated text so far
+                                            "chunk": chunk_delta,     # THE LIVE DELTA CHUNK (Use this for your fast UI typing!)
+                                            "conversation_id": conversation_id,
+                                            "response_id": response_id,
+                                            "images": images,
+                                            "error": False,
+                                        }
                 except json.JSONDecodeError:
                     continue
 
             self._reqid += random.randint(1000, 9000)
 
         except Exception as e:
-            yield {"content": f"Streaming error: {e}", "error": True}
+            yield {"content": f"Streaming error: {e}", "chunk": f"Streaming error: {e}", "error": True}
 
     async def ask(self, message: str, image: Optional[Union[bytes, str, Path]] = None) -> dict:
         if self.SNlM0e is None:

@@ -1,11 +1,13 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Union, Dict, Any
 import time
 import uuid
 import base64
+import json
 
 import database as db
 from gemini_client.core import AsyncChatbot
@@ -175,49 +177,69 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             bot.response_id = session_data["rid"] or ""
             bot.choice_id = session_data["chid"] or ""
 
-        # Pass both prompt and potentially parsed image_bytes to core.py logic
-        response = await bot.ask(prompt, image=image_bytes)
-        
-        db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id)
-        await bot.session.close()
+        if request.stream:
+            async def stream_generator():
+                try:
+                    cid, rid, chid = None, None, None
+                    async for result in bot.ask_stream(prompt, image=image_bytes):
+                        # Catch potential API/cookie errors during stream
+                        if result.get("error"):
+                            error_msg = result.get("content", "Unknown error")
+                            error_chunk = {
+                                "id": f"chatcmpl-{uuid.uuid4().hex}",
+                                "object": "chat.completion.chunk",
+                                "created": int(time.time()),
+                                "model": request.model,
+                                "choices": [{"index": 0, "delta": {"content": f"\n\n[Error: {error_msg}]"}, "finish_reason": "stop"}]
+                            }
+                            yield f"data: {json.dumps(error_chunk)}\n\n"
+                            break
+                        
+                        chunk_text = result.get("chunk", "")
+                        cid = result.get("conversation_id")
+                        rid = result.get("response_id")
+                        chid = result.get("choice_id")
+                        
+                        # Emit the live text chunk
+                        if chunk_text:
+                            chunk_json = {
+                                "id": f"chatcmpl-{uuid.uuid4().hex}",
+                                "object": "chat.completion.chunk",
+                                "created": int(time.time()),
+                                "model": request.model,
+                                "choices": [{"index": 0, "delta": {"content": chunk_text}, "finish_reason": None}]
+                            }
+                            yield f"data: {json.dumps(chunk_json)}\n\n"
 
-        if response.get("error"):
-            raise HTTPException(status_code=500, detail=str(response.get("content", "Unknown error occurred.")))
-            
-        # ROBUST TEXT EXTRACTION:
-        # Prevents "Blank UI Box" by forcing Gemini's nested list responses into strings
-        raw_content = response.get("content") or ""
-        
-        def extract_text(item: Any) -> str:
-            if isinstance(item, str):
-                return item
-            elif isinstance(item, list):
-                return "".join(extract_text(x) for x in item if x is not None)
-            return str(item) if item is not None else ""
-            
-        final_content = extract_text(raw_content).strip()
+                    # Update persistent conversation session after stream is fully complete
+                    if cid:
+                        db.update_api_key_session(api_key_token, cid, rid, chid)
+                        
+                    # Emit final finish_reason block
+                    finish_chunk = {
+                        "id": f"chatcmpl-{uuid.uuid4().hex}",
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": request.model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
+                    }
+                    yield f"data: {json.dumps(finish_chunk)}\n\n"
+                    yield "data: [DONE]\n\n"
+                finally:
+                    # Crucial: Close network session once streaming ends
+                    await bot.session.close()
 
-        return {
-            "id": f"chatcmpl-{uuid.uuid4().hex}",
-            "object": "chat.completion",
-            "created": int(time.time()),
-            "model": request.model,
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content}, "finish_reason": "stop"}]
-        }
+            return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_str = str(e)
-        
-        # SMART AUTO-HEALER TRIGGER & FLOOD CONTROL
-        if any(kw in error_str.lower() for kw in ["cookie", "snlm0e", "auth", "permission", "status: 40", "status: 50"]):
-            # Signal the Chrome Extension
-            db.set_needs_update(True)
+        else:
+            # STANDARD SYNCHRONOUS REQUEST (Non-Streaming)
+            # Pass both prompt and potentially parsed image_bytes to core.py logic
+            response = await bot.ask(prompt, image=image_bytes)
             
-            # Flood Control: Only alert Telegram once every 5 minutes
-            if db.check_and_set_alert_flood(cooldown_seconds=300):
-                from admin_bot import send_admin_alert
-                send_admin_alert("Cookies expired! Notifying Chrome Extension Auto-Healer to execute payload...")
+            db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id)
+            await bot.session.close()
+
+            if response.get("error"):
+                raise HTTPException(status_code=500, detail=str(response.get("content", "Unknown error occurred.")))
                 
-        raise HTTPException(status_code=500, detail=error_str)
+            # ROBUST TEXT EXTRACTION:
