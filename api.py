@@ -24,8 +24,11 @@ app.add_middleware(
 
 class Message(BaseModel):
     role: str
-    content: Union[str, List[Dict[str, Any]]] 
+    content: Optional[Union[str, List[Any]]] = None
     name: Optional[str] = None
+    
+    class Config:
+        extra = "ignore"  # Prevents 422 errors from unexpected fields
 
 class ChatCompletionRequest(BaseModel):
     model: str 
@@ -45,6 +48,9 @@ class ChatCompletionRequest(BaseModel):
     response_format: Optional[Dict[str, str]] = None
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+
+    class Config:
+        extra = "ignore"  # Strongly prevents 422 errors
 
 class CookieUpdateRequest(BaseModel):
     psid: str
@@ -122,28 +128,31 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
     if allowed_list and request.model not in allowed_list:
         raise HTTPException(status_code=403, detail=f"Your API key does not have access to model: {request.model}.")
         
+    # Get the last message to process
     last_msg_content = request.messages[-1].content if request.messages else ""
     image_bytes = None
     prompt = ""
 
-    # Check for Vision Payload (List of Dictionaries)
+    # Check for Vision Payload (List of Dictionaries/Objects)
     if isinstance(last_msg_content, list):
         for item in last_msg_content:
-            if item.get("type") == "text":
-                prompt += item.get("text", "") + " "
-            elif item.get("type") == "image_url":
-                img_data = item.get("image_url", {}).get("url", "")
-                if img_data.startswith("data:image"):
-                    try:
-                        b64_str = img_data.split("base64,")[1]
-                        image_bytes = base64.b64decode(b64_str)
-                    except Exception as e:
-                        print(f"Failed to decode base64 image: {e}")
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    prompt += item.get("text", "") + " "
+                elif item.get("type") == "image_url":
+                    img_data = item.get("image_url", {}).get("url", "")
+                    if img_data.startswith("data:image"):
+                        try:
+                            b64_str = img_data.split("base64,")[1]
+                            image_bytes = base64.b64decode(b64_str)
+                        except Exception as e:
+                            print(f"Failed to decode base64 image: {e}")
         prompt = prompt.strip()
         if not prompt and image_bytes:
             prompt = "Describe this image."
     else:
-        prompt = str(last_msg_content)
+        # Standard text message
+        prompt = str(last_msg_content) if last_msg_content else ""
     
     api_key_token = auth_data["key"]
 
@@ -165,7 +174,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             bot.response_id = session_data["rid"] or ""
             bot.choice_id = session_data["chid"] or ""
 
-        # Pass both prompt and potentially parsed image_bytes
+        # Pass both prompt and potentially parsed image_bytes to core.py logic
         response = await bot.ask(prompt, image=image_bytes)
         
         db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id)
