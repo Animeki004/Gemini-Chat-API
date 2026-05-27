@@ -172,8 +172,8 @@ def smart_split(text, max_length=3900):
     return fixed_chunks
 
 if bot:
-    def is_admin(obj):
-        return str(obj.from_user.id) == str(ADMIN_ID)
+    def is_admin(message):
+        return str(message.from_user.id) == str(ADMIN_ID)
 
     @bot.message_handler(commands=['upload'])
     def upload_instructions(message):
@@ -219,7 +219,8 @@ if bot:
             "• /models - View available AI models\n"
             "• /setmodel &lt;name&gt; - Change active model\n\n"
             "🔑 <b>API & Security</b>\n"
-            "• /newkey [name] - Generate a new API key\n"
+            "• /newadminkey [name] - Generate an Admin API key\n"
+            "• /newkey [name] - Generate a Standard API key\n"
             "• /listkeys - View all API keys\n"
             "• /revoke &lt;key&gt; - Revoke an API key\n"
             "• /setcookies - Update auth cookies\n\n"
@@ -472,6 +473,15 @@ if bot:
 
         asyncio.run(stream_gemini())
 
+    @bot.message_handler(commands=['newadminkey'])
+    def generate_admin_key_command(message):
+        if not is_admin(message): return
+        args = message.text.split()[1:]
+        name = args[0] if args else "Chrome-Extension-Admin"
+        
+        new_key = db.generate_api_key(name, "all", role="admin")
+        bot.reply_to(message, f"🛡 <b>ADMIN API Key Generated:</b> {name}\n\n<code>{new_key}</code>\n\n<i>Provide this to your Chrome Extension for secure auto-sync access. Do not share this key with normal API users.</i>", parse_mode="HTML")
+
     @bot.message_handler(commands=['newkey'])
     def generate_key_start(message):
         if not is_admin(message): return
@@ -488,8 +498,8 @@ if bot:
             return
             
         allowed_models = message.text.strip().lower()
-        new_key = db.generate_api_key(name, allowed_models)
-        bot.reply_to(message, f"✅ <b>API Key Generated for:</b> {name}\n\n<code>{new_key}</code>\n\n<b>Allowed Models:</b> <code>{allowed_models}</code>", parse_mode="HTML")
+        new_key = db.generate_api_key(name, allowed_models, role="user")
+        bot.reply_to(message, f"✅ <b>Standard API Key Generated for:</b> {name}\n\n<code>{new_key}</code>\n\n<b>Allowed Models:</b> <code>{allowed_models}</code>", parse_mode="HTML")
 
     @bot.message_handler(commands=['listkeys'])
     def list_keys(message):
@@ -499,9 +509,10 @@ if bot:
             bot.reply_to(message, "No keys found.")
             return
         text = "🔑 <b>API Keys:</b>\n\n"
-        for k, name, active, allowed_models, timeout in keys:
+        for k, name, active, allowed_models, timeout, role in keys:
             status = "🟢 Active" if active else "🔴 Revoked"
-            text += f"<b>{name}</b> - {status}\n<code>{k}</code>\nModels: <code>{allowed_models}</code>\nSession Timeout: <code>{timeout} hours</code>\n\n"
+            role_icon = "🛡" if role == 'admin' else "👤"
+            text += f"{role_icon} <b>{name}</b> ({role.upper()}) - {status}\n<code>{k}</code>\nModels: <code>{allowed_models}</code>\nSession Timeout: <code>{timeout} hours</code>\n\n"
         bot.reply_to(message, text, parse_mode="HTML")
 
     @bot.message_handler(commands=['settimeout'])

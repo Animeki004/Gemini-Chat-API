@@ -13,30 +13,22 @@ from gemini_client.enums import Model
 app = FastAPI(title="Gemini-to-OpenAI API")
 security = HTTPBearer()
 
-# --- CORS Configuration ---
-# This ensures that web browsers (like the api_tester.html) can interact 
-# with this API without throwing Cross-Origin resource errors.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allow all origins for testing
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- OpenAI Request/Response Models ---
 class Message(BaseModel):
     role: str
-    content: Union[str, List[Dict[str, Any]]] # Supports both standard strings and vision object arrays
+    content: Union[str, List[Dict[str, Any]]] 
     name: Optional[str] = None
 
 class ChatCompletionRequest(BaseModel):
-    model: str # REQUIRED field, no default.
+    model: str 
     messages: List[Message]
-    
-    # --- OpenAI Compatibility Fields ---
-    # These parameters allow true OpenAI SDKs (LangChain, AutoGen, etc.) to query this API 
-    # without crashing due to "Unprocessable Entity" validation errors.
     temperature: Optional[float] = 1.0
     top_p: Optional[float] = 1.0
     n: Optional[int] = 1
@@ -53,19 +45,48 @@ class ChatCompletionRequest(BaseModel):
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
 
-# --- Dependency to check API Key ---
+class CookieUpdateRequest(BaseModel):
+    psid: str
+    psidts: str
+
 def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
     details = db.get_api_key_details(credentials.credentials)
-    if not details or not details[0]: # details[0] is active status
+    if not details or not details[0]: 
         raise HTTPException(status_code=401, detail="Invalid or deactivated API Key")
-    return {"key": credentials.credentials, "allowed_models": details[1]}
+    return {"key": credentials.credentials, "allowed_models": details[1], "role": details[2]}
 
-# --- OpenAI-compatible Models Endpoint ---
+def verify_admin_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    details = db.get_api_key_details(credentials.credentials)
+    if not details or not details[0]: 
+        raise HTTPException(status_code=401, detail="Invalid or deactivated API Key")
+    if details[2] != 'admin':
+        raise HTTPException(status_code=403, detail="API Key lacks 'admin' permissions required for this endpoint")
+    return {"key": credentials.credentials}
+
+# ==========================================
+# SECURE EXTENSION AUTO-HEALER ENDPOINTS
+# ==========================================
+@app.get("/v1/admin/cookie_status")
+async def check_cookie_status(admin_auth = Depends(verify_admin_key)):
+    """Extension securely polls this to see if intervention is needed."""
+    return {"needs_update": db.get_needs_update()}
+
+@app.post("/v1/admin/cookies")
+async def update_cookies_api(request: CookieUpdateRequest, admin_auth = Depends(verify_admin_key)):
+    """Extension pushes JSON Secure data packet here to fix cookies."""
+    db.update_cookies(request.psid, request.psidts)
+    db.set_needs_update(False) # Turn off the distress signal
+    
+    from admin_bot import bot, ADMIN_ID
+    if bot and ADMIN_ID:
+        try:
+            bot.send_message(ADMIN_ID, "✅ <b>Auto-Heal Complete:</b> The Chrome Extension securely intercepted the error and updated the database with fresh cookies!", parse_mode="HTML")
+        except: pass
+        
+    return {"status": "success", "message": "Secure payload accepted. Cookies updated."}
+
 @app.get("/v1/models")
 async def list_models(auth_data: dict = Depends(verify_api_key)):
-    """
-    Allows OpenAI-compatible frontends to query available models.
-    """
     allowed_models_str = auth_data["allowed_models"]
     allowed_list = [m.strip() for m in allowed_models_str.split(",")] if allowed_models_str != "all" else None
     
@@ -73,8 +94,6 @@ async def list_models(auth_data: dict = Depends(verify_api_key)):
     for m in Model:
         if m == Model.UNSPECIFIED:
             continue
-            
-        # Check model restrictions
         if allowed_list and m.model_name not in allowed_list:
             continue
             
@@ -88,10 +107,7 @@ async def list_models(auth_data: dict = Depends(verify_api_key)):
             "parent": None,
         })
         
-    return {
-        "object": "list",
-        "data": models_data
-    }
+    return {"object": "list", "data": models_data}
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Depends(verify_api_key)):
@@ -99,18 +115,14 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
     if not cookies or not cookies[0]:
         raise HTTPException(status_code=500, detail="Gemini Cookies not set. Admin must set them via Telegram.")
     
-    # Verify Model Authorization for this API Key
     allowed_models_str = auth_data["allowed_models"]
     allowed_list = [m.strip() for m in allowed_models_str.split(",")] if allowed_models_str != "all" else None
     
     if allowed_list and request.model not in allowed_list:
-        raise HTTPException(status_code=403, detail=f"Your API key does not have access to model: {request.model}. Authorized models: {allowed_models_str}")
+        raise HTTPException(status_code=403, detail=f"Your API key does not have access to model: {request.model}.")
         
-    # Extract the last message as the prompt
-    # Safely handle standard strings vs complex vision dictionaries
     last_msg_content = request.messages[-1].content if request.messages else ""
     if isinstance(last_msg_content, list):
-        # Flatten vision array into string prompt if applicable
         prompt = " ".join([item.get("text", "") for item in last_msg_content if item.get("type") == "text"])
     else:
         prompt = last_msg_content
@@ -118,11 +130,9 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
     api_key_token = auth_data["key"]
 
     try:
-        # Initialize Gemini Client with explicitly requested model
         try:
             requested_model = Model.from_name(request.model)
         except ValueError as e:
-            # Instantly reject invalid models
             raise HTTPException(status_code=400, detail=str(e))
                 
         bot = await AsyncChatbot.create(
@@ -131,53 +141,41 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             model=requested_model
         )
         
-        # --- NEW: Retrieve API Key Session from Database ---
         session_data = db.get_api_key_session(api_key_token)
         if session_data and session_data["cid"]:
             bot.conversation_id = session_data["cid"]
             bot.response_id = session_data["rid"] or ""
             bot.choice_id = session_data["chid"] or ""
 
-        # Ask Gemini (Passing through prompt)
         response = await bot.ask(prompt)
         
-        # --- NEW: Save the updated Session to Database ---
-        db.update_api_key_session(
-            api_key_token, 
-            bot.conversation_id, 
-            bot.response_id, 
-            bot.choice_id
-        )
-        
+        db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id)
         await bot.session.close()
 
         if response.get("error"):
             raise HTTPException(status_code=500, detail=response.get("content"))
             
-        # Format exactly like a true OpenAI response
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex}",
             "object": "chat.completion",
             "created": int(time.time()),
             "model": request.model,
-            "system_fingerprint": f"fp_{uuid.uuid4().hex[:10]}",
-            "choices": [{
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": response.get("content", "")
-                },
-                "logprobs": None,
-                "finish_reason": "stop"
-            }],
-            "usage": {
-                "prompt_tokens": len(prompt) // 4, # rough estimation
-                "completion_tokens": len(response.get("content", "")) // 4,
-                "total_tokens": (len(prompt) + len(response.get("content", ""))) // 4
-            }
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": response.get("content", "")}, "finish_reason": "stop"}]
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e)
+        
+        # SMART AUTO-HEALER TRIGGER & FLOOD CONTROL
+        if any(kw in error_str.lower() for kw in ["cookie", "snlm0e", "auth", "permission", "status: 40", "status: 50"]):
+            # Signal the Chrome Extension
+            db.set_needs_update(True)
+            
+            # Flood Control: Only alert Telegram once every 5 minutes
+            if db.check_and_set_alert_flood(cooldown_seconds=300):
+                from admin_bot import send_admin_alert
+                send_admin_alert("Cookies expired! Notifying Chrome Extension Auto-Healer to execute payload...")
+                
+        raise HTTPException(status_code=500, detail=error_str)

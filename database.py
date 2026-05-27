@@ -9,7 +9,6 @@ DATA_DIR = "data"
 DB_PATH = os.path.join(DATA_DIR, "database.db")
 
 def _get_conn():
-
     if not os.path.exists(DATA_DIR):
         os.makedirs(DATA_DIR)
     conn = sqlite3.connect(DB_PATH)
@@ -29,18 +28,24 @@ def init_db():
     # Auto-migrate table for new models and session storage
     try:
         c.execute("ALTER TABLE api_keys ADD COLUMN allowed_models TEXT DEFAULT 'all'")
-    except sqlite3.OperationalError:
-        pass
-    
-    # Session Persistence Columns
-    try:
         c.execute("ALTER TABLE api_keys ADD COLUMN conversation_id TEXT")
         c.execute("ALTER TABLE api_keys ADD COLUMN response_id TEXT")
         c.execute("ALTER TABLE api_keys ADD COLUMN choice_id TEXT")
         c.execute("ALTER TABLE api_keys ADD COLUMN last_used REAL DEFAULT 0")
-        c.execute("ALTER TABLE api_keys ADD COLUMN timeout_hours REAL DEFAULT 24") # Default 24 hours
+        c.execute("ALTER TABLE api_keys ADD COLUMN timeout_hours REAL DEFAULT 24")
     except sqlite3.OperationalError:
         pass
+        
+    # NEW: Security role for Admin API Keys
+    try:
+        c.execute("ALTER TABLE api_keys ADD COLUMN role TEXT DEFAULT 'user'")
+    except sqlite3.OperationalError:
+        pass
+
+    # NEW: System status table for Extension Polling and Flood Control
+    c.execute('''CREATE TABLE IF NOT EXISTS system_status
+                 (id INTEGER PRIMARY KEY, needs_update INTEGER, last_alert REAL)''')
+    c.execute("INSERT OR IGNORE INTO system_status (id, needs_update, last_alert) VALUES (1, 0, 0)")
         
     conn.commit()
     conn.close()
@@ -66,17 +71,17 @@ def get_cookies():
     conn.close()
     return row if row else (None, None)
 
-def generate_api_key(name, allowed_models="all"):
+def generate_api_key(name, allowed_models="all", role="user"):
     key = "sk-" + uuid.uuid4().hex
     conn = _get_conn()
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours) VALUES (?, ?, 1, ?, ?, ?)", 
-                  (key, name, allowed_models, time.time(), 24.0))
+        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours, role) VALUES (?, ?, 1, ?, ?, ?, ?)", 
+                  (key, name, allowed_models, time.time(), 24.0, role))
     except sqlite3.OperationalError:
         init_db() 
-        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours) VALUES (?, ?, 1, ?, ?, ?)", 
-                  (key, name, allowed_models, time.time(), 24.0))
+        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours, role) VALUES (?, ?, 1, ?, ?, ?, ?)", 
+                  (key, name, allowed_models, time.time(), 24.0, role))
     conn.commit()
     conn.close()
     return key
@@ -85,10 +90,10 @@ def list_api_keys():
     conn = _get_conn()
     c = conn.cursor()
     try:
-        c.execute("SELECT key, name, active, allowed_models, timeout_hours FROM api_keys")
+        c.execute("SELECT key, name, active, allowed_models, timeout_hours, role FROM api_keys")
     except sqlite3.OperationalError:
         init_db()
-        c.execute("SELECT key, name, active, allowed_models, timeout_hours FROM api_keys")
+        c.execute("SELECT key, name, active, allowed_models, timeout_hours, role FROM api_keys")
     rows = c.fetchall()
     conn.close()
     return rows
@@ -106,10 +111,10 @@ def get_api_key_details(key):
     conn = _get_conn()
     c = conn.cursor()
     try:
-        c.execute("SELECT active, allowed_models FROM api_keys WHERE key = ?", (key,))
+        c.execute("SELECT active, allowed_models, role FROM api_keys WHERE key = ?", (key,))
     except sqlite3.OperationalError:
         init_db()
-        c.execute("SELECT active, allowed_models FROM api_keys WHERE key = ?", (key,))
+        c.execute("SELECT active, allowed_models, role FROM api_keys WHERE key = ?", (key,))
     row = c.fetchone()
     conn.close()
     return row
@@ -126,9 +131,7 @@ def get_api_key_session(key):
         
     cid, rid, chid, last_used, timeout_hours = row
     
-    # Check Expiration (Timeout in hours converted to seconds)
     if time.time() - last_used > (timeout_hours * 3600):
-        # Session expired, clear it
         update_api_key_session(key, None, None, None)
         return None
         
@@ -150,3 +153,40 @@ def set_key_timeout(name, timeout_hours):
     conn.commit()
     conn.close()
     return success
+
+# ========================================================
+# FLOOD CONTROL & EXTENSION SIGNALING SYSTEM
+# ========================================================
+def set_needs_update(status: bool):
+    conn = _get_conn()
+    c = conn.cursor()
+    c.execute("UPDATE system_status SET needs_update = ? WHERE id = 1", (1 if status else 0,))
+    conn.commit()
+    conn.close()
+
+def get_needs_update() -> bool:
+    conn = _get_conn()
+    c = conn.cursor()
+    c.execute("SELECT needs_update FROM system_status WHERE id = 1")
+    row = c.fetchone()
+    conn.close()
+    return bool(row[0]) if row else False
+
+def check_and_set_alert_flood(cooldown_seconds=300) -> bool:
+    """Returns True if an alert should be sent (not flooded), False if in cooldown."""
+    conn = _get_conn()
+    c = conn.cursor()
+    c.execute("SELECT last_alert FROM system_status WHERE id = 1")
+    row = c.fetchone()
+    
+    now = time.time()
+    last_alert = row[0] if row else 0
+    
+    # If 5 minutes have passed since the last alert, allow a new one
+    if now - last_alert > cooldown_seconds:
+        c.execute("UPDATE system_status SET last_alert = ? WHERE id = 1", (now,))
+        conn.commit()
+        conn.close()
+        return True
+    conn.close()
+    return False
