@@ -200,15 +200,17 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             async def stream_generator():
                 try:
                     cid, rid, chid = None, None, None
+                    session_wiped = False
                     async for result in bot.ask_stream(prompt, files=files_to_upload):
                         # Catch potential API/cookie errors during stream
                         if result.get("error"):
                             error_msg = str(result.get("content", "Unknown error"))
                             
                             # SMART SESSION RESET: Detect Account Change Mismatch
-                            if any(code in error_msg for code in ["400", "404", "not found", "invalid argument"]):
+                            if any(code in error_msg.lower() for code in ["400", "404", "bad request", "not found", "invalid argument"]):
                                 db.update_api_key_session(api_key_token, "", "", "")
-                                error_msg += " ->  Your invalid session was wiped! Please retry to start a fresh chat."
+                                session_wiped = True
+                                error_msg += " -> 🔄 Your invalid session was wiped! Please retry to start a fresh chat."
 
                             error_chunk = {
                                 "id": f"chatcmpl-{uuid.uuid4().hex}",
@@ -252,7 +254,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                             yield f"data: {json.dumps(chunk_json)}\n\n"
 
                     # Update persistent conversation session after stream is fully complete
-                    if cid:
+                    if cid and not session_wiped:
                         db.update_api_key_session(api_key_token, cid, rid, chid)
                         
                     # Emit final finish_reason block
@@ -296,7 +298,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             if response.get("error"):
                 error_msg = str(response.get("content", "Unknown error occurred."))
                 # SMART SESSION RESET: Detect Account Change Mismatch
-                if any(code in error_msg for code in ["400", "404", "not found", "invalid argument"]):
+                if any(code in error_msg.lower() for code in ["400", "404", "bad request", "not found", "invalid argument"]):
                     db.update_api_key_session(api_key_token, "", "", "")
                     raise HTTPException(status_code=500, detail=f"{error_msg} -> 🔄 Account switch detected. Your invalid session was wiped! Please retry to start a fresh chat.")
                 raise HTTPException(status_code=500, detail=error_msg)
@@ -336,7 +338,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
         error_str = str(e)
 
         # SMART SESSION RESET FALLBACK (Outer catch)
-        if any(code in error_str for code in ["400", "404", "not found", "invalid argument"]) and "conversation" in error_str.lower():
+        if any(code in error_str.lower() for code in ["400", "404", "bad request", "not found", "invalid argument"]):
             db.update_api_key_session(api_key_token, "", "", "")
             raise HTTPException(status_code=500, detail="🔄 Account switch detected! Old conversation session wiped. Please retry your request.")
         
