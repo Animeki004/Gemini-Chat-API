@@ -8,6 +8,7 @@ import time
 import uuid
 import base64
 import json
+import os
 
 import database as db
 from gemini_client.core import AsyncChatbot
@@ -133,26 +134,44 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
         
     # Get the last message to process
     last_msg_content = request.messages[-1].content if request.messages else ""
-    image_bytes = None
+    prompt_parts = []
+    files_to_upload = []
+    temp_files = []
     prompt = ""
 
-    # Check for Vision Payload (List of Dictionaries/Objects)
+    # Check for Vision/File Payload (List of Dictionaries/Objects)
     if isinstance(last_msg_content, list):
         for item in last_msg_content:
             if isinstance(item, dict):
                 if item.get("type") == "text":
-                    prompt += item.get("text", "") + " "
-                elif item.get("type") == "image_url":
-                    img_data = item.get("image_url", {}).get("url", "")
-                    if img_data.startswith("data:image"):
+                    prompt_parts.append(item.get("text", ""))
+                elif item.get("type") in ["image_url", "file_url"]:
+                    url_obj = item.get("image_url") or item.get("file_url")
+                    if not url_obj: continue
+                    
+                    url = url_obj.get("url", "")
+                    filename = url_obj.get("name", f"upload_{len(files_to_upload)}.bin")
+                    
+                    if url.startswith("data:"):
                         try:
-                            b64_str = img_data.split("base64,")[1]
-                            image_bytes = base64.b64decode(b64_str)
+                            header, encoded = url.split(",", 1)
+                            file_bytes = base64.b64decode(encoded)
+                            
+                            # Save to temp file to retain original extension for MIME detection
+                            tmp_dir = os.path.join("data", "temp_uploads")
+                            os.makedirs(tmp_dir, exist_ok=True)
+                            tmp_path = os.path.join(tmp_dir, f"{uuid.uuid4().hex}_{filename}")
+                            
+                            with open(tmp_path, "wb") as f:
+                                f.write(file_bytes)
+                            
+                            files_to_upload.append(tmp_path)
+                            temp_files.append(tmp_path)
                         except Exception as e:
-                            print(f"Failed to decode base64 image: {e}")
-        prompt = prompt.strip()
-        if not prompt and image_bytes:
-            prompt = "Describe this image."
+                            print(f"Failed to decode base64 file: {e}")
+        prompt = "\n".join(prompt_parts).strip()
+        if not prompt and files_to_upload:
+            prompt = "Analyze the provided files/images."
     else:
         # Standard text message
         prompt = str(last_msg_content) if last_msg_content else ""
@@ -168,7 +187,8 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
         bot = await AsyncChatbot.create(
             secure_1psid=cookies[0],
             secure_1psidts=cookies[1],
-            model=requested_model
+            model=requested_model,
+            timeout=120  # INCREASED TIMEOUT to 120s to prevent stream cutoff for long generations
         )
         
         session_data = db.get_api_key_session(api_key_token)
@@ -181,7 +201,9 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             async def stream_generator():
                 try:
                     cid, rid, chid = None, None, None
-                    async for result in bot.ask_stream(prompt, image=image_bytes):
+                    prev_text = ""  # Track previous text to safely compute actual new text
+                    
+                    async for result in bot.ask_stream(prompt, files=files_to_upload):
                         # Catch potential API/cookie errors during stream
                         if result.get("error"):
                             error_msg = result.get("content", "Unknown error")
@@ -195,10 +217,29 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                             yield f"data: {json.dumps(error_chunk)}\n\n"
                             break
                         
-                        chunk_text = result.get("chunk", "")
+                        full_content = result.get("content", "")
                         cid = result.get("conversation_id")
                         rid = result.get("response_id")
                         chid = result.get("choice_id")
+                        
+                        # --- ROBUST DELTA CALCULATION ---
+                        # Instead of relying on core.py's potentially broken chunking, we calculate the exact delta here.
+                        # This prevents the stream from breaking if core.py shrinks the content string.
+                        chunk_text = ""
+                        if full_content:
+                            if full_content.startswith(prev_text):
+                                chunk_text = full_content[len(prev_text):]
+                            else:
+                                # Find common prefix if Gemini slightly rewrote the formatting of previous text
+                                common_len = 0
+                                for i in range(min(len(full_content), len(prev_text))):
+                                    if full_content[i] == prev_text[i]:
+                                        common_len += 1
+                                    else:
+                                        break
+                                chunk_text = full_content[common_len:]
+                            prev_text = full_content
+                        # --------------------------------
                         
                         # Extract and format images securely for JSON serialization
                         raw_imgs = result.get("images", [])
@@ -243,16 +284,31 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 finally:
                     # Crucial: Close network session once streaming ends
                     await bot.session.close()
+                    # Clean up temporary uploaded files
+                    for p in temp_files:
+                        if os.path.exists(p):
+                            try:
+                                os.remove(p)
+                            except:
+                                pass
 
             return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
         else:
             # STANDARD SYNCHRONOUS REQUEST (Non-Streaming)
-            # Pass both prompt and potentially parsed image_bytes to core.py logic
-            response = await bot.ask(prompt, image=image_bytes)
+            # Pass both prompt and potentially parsed files to core.py logic
+            response = await bot.ask(prompt, files=files_to_upload)
             
             db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id)
             await bot.session.close()
+            
+            # Clean up temporary uploaded files
+            for p in temp_files:
+                if os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except:
+                        pass
 
             if response.get("error"):
                 raise HTTPException(status_code=500, detail=str(response.get("content", "Unknown error occurred.")))
@@ -303,4 +359,3 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 send_admin_alert("Cookies expired! Notifying Chrome Extension Auto-Healer to execute payload...")
                 
         raise HTTPException(status_code=500, detail=error_str)
-    
