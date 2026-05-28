@@ -100,9 +100,9 @@ No manual extension mapping is required for most formats.
 
 ---
 
-# 🧠 Gemini Attachment Pipeline
+# 🧠 Gemini Attachment System
 
-Each uploaded file is sent as:
+Each uploaded file is internally sent as:
 
 ```json
 {
@@ -116,31 +116,63 @@ Where:
 
 | Field  | Purpose                             |
 | ------ | ----------------------------------- |
-| `mime` | Real file MIME type                 |
+| `mime` | Real MIME type of the file          |
 | `flag` | Internal Gemini processing category |
-
-The backend dynamically detects both values automatically.
 
 ---
 
 # 📦 Supported File Categories
 
-| Category                  | Extensions                                                                                                                                            | MIME Type                                   | Gemini Flag |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------- |
-| 🖼️ Images                | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.heic`, `.heif`, `.svg`, `.tiff`                                                                   | `image/*`                                   | `1`         |
-| 🎥 Videos                 | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm`                                                                                                               | `video/*`                                   | `2`         |
-| 📄 Plain Text             | `.txt`                                                                                                                                                | `text/plain`                                | `3`         |
-| 📊 Spreadsheets           | `.xls`, `.xlsx`, `.csv`, `.ods`                                                                                                                       | `application/vnd.ms-excel`, etc             | `7`         |
-| 📦 Archives               | `.zip`, `.tar`, `.gz`, `.bz2`, `.7z`, `.rar`                                                                                                          | `application/zip`, `application/x-tar`, etc | `9`         |
-| 📕 PDFs                   | `.pdf`                                                                                                                                                | `application/pdf`                           | `11`        |
-| 💻 Code & Developer Files | `.py`, `.js`, `.ts`, `.tsx`, `.jsx`, `.java`, `.kt`, `.go`, `.rs`, `.php`, `.rb`, `.swift`, `.scala`, `.sh`, `.html`, `.xml`, `.json`, `.md`, `.yaml` | `text/*`, `application/json`, etc           | `16`        |
-| ❓ Unknown Binary          | unmapped extensions, `.m3u`, custom formats                                                                                                           | `application/octet-stream`                  | `0`         |
+| Category                  | Supported Extensions                                                                                                                                                                           | MIME Type                                                                                                    | Gemini Flag |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------- |
+| 🖼️ Images                | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.svg`, `.ico`, `.heic`, `.heif`, `.tiff`, `.avif`                                                                                           | `image/*`                                                                                                    | `1`         |
+| 🎥 Videos                 | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm`, `.m4v`                                                                                                                                                | `video/*`                                                                                                    | `2`         |
+| 🎵 Audio                  | `.mp3`, `.wav`, `.ogg`, `.flac`, `.m4a`, `.aac`                                                                                                                                                | `audio/*`                                                                                                    | `3`         |
+| 📄 Plain Text             | `.txt`, `.log`, `.ini`, `.cfg`                                                                                                                                                                 | `text/plain`                                                                                                 | `3`         |
+| 📊 Spreadsheets           | `.xls`, `.xlsx`, `.csv`, `.ods`                                                                                                                                                                | `application/vnd.ms-excel`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `text/csv`  | `7`         |
+| 📦 Archives               | `.zip`, `.tar`, `.gz`, `.bz2`, `.7z`, `.rar`                                                                                                                                                   | `application/zip`, `application/x-tar`, etc                                                                  | `9`         |
+| 📘 Word Documents         | `.doc`, `.docx`, `.odt`, `.rtf`                                                                                                                                                                | `application/msword`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`              | `10`        |
+| 📕 PDFs                   | `.pdf`                                                                                                                                                                                         | `application/pdf`                                                                                            | `11`        |
+| 📽️ Presentations         | `.ppt`, `.pptx`, `.odp`                                                                                                                                                                        | `application/vnd.ms-powerpoint`, `application/vnd.openxmlformats-officedocument.presentationml.presentation` | `12`        |
+| 💻 Code & Developer Files | `.py`, `.js`, `.jsx`, `.ts`, `.tsx`, `.java`, `.kt`, `.go`, `.rs`, `.php`, `.rb`, `.swift`, `.scala`, `.sh`, `.bash`, `.zsh`, `.html`, `.css`, `.xml`, `.json`, `.yaml`, `.yml`, `.md`, `.sql` | `text/*`, `application/json`, etc                                                                            | `16`        |
+| 🌐 Web & Structured Data  | `.html`, `.xml`, `.json`, `.yaml`, `.yml`, `.svg`                                                                                                                                              | `text/html`, `text/xml`, `application/json`                                                                  | `16`        |
+| 🧪 Unknown Binary         | unmapped extensions, `.m3u`, custom formats                                                                                                                                                    | `application/octet-stream`                                                                                   | `0`         |
+
+---
+
+# 🔍 Real MIME Examples
+
+| Extension | MIME Type                                                                   |
+| --------- | --------------------------------------------------------------------------- |
+| `.png`    | `image/png`                                                                 |
+| `.jpg`    | `image/jpeg`                                                                |
+| `.mp4`    | `video/mp4`                                                                 |
+| `.mp3`    | `audio/mpeg`                                                                |
+| `.txt`    | `text/plain`                                                                |
+| `.pdf`    | `application/pdf`                                                           |
+| `.csv`    | `text/csv`                                                                  |
+| `.xls`    | `application/vnd.ms-excel`                                                  |
+| `.xlsx`   | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`         |
+| `.docx`   | `application/vnd.openxmlformats-officedocument.wordprocessingml.document`   |
+| `.pptx`   | `application/vnd.openxmlformats-officedocument.presentationml.presentation` |
+| `.json`   | `application/json`                                                          |
+| `.md`     | `text/markdown`                                                             |
+| `.html`   | `text/html`                                                                 |
+| `.xml`    | `text/xml`                                                                  |
+| `.js`     | `text/javascript`                                                           |
+| `.jsx`    | `text/jsx`                                                                  |
+| `.ts`     | `application/typescript`                                                    |
+| `.tsx`    | `text/tsx`                                                                  |
+| `.kt`     | `text/x-kotlin`                                                             |
+| `.py`     | `text/x-python`                                                             |
+| `.zip`    | `application/zip`                                                           |
+| `.m3u`    | `application/octet-stream`                                                  |
 
 ---
 
 # ⚡ Dynamic MIME Detection
 
-The backend uses Python `mimetypes` for automatic MIME detection:
+The backend automatically detects MIME types using Python:
 
 ```python
 import mimetypes
@@ -150,71 +182,69 @@ mime, _ = mimetypes.guess_type(filename)
 
 This means:
 
-* new formats automatically work
+* future formats automatically work
 * browser-compatible MIME behavior
 * no hardcoded extension lists required
-* future-proof upload handling
+* Gemini-compatible upload handling
 
 ---
 
-# 🔍 Dynamic Gemini Flag Routing
+# 🧠 Internal Gemini Flag Routing
 
-Files are automatically routed into Gemini’s internal processing pipelines.
+Different file categories activate different Gemini processing pipelines.
 
-Example routing:
-
-| MIME                       | Gemini Flag |
-| -------------------------- | ----------- |
-| `image/png`                | `1`         |
-| `video/mp4`                | `2`         |
-| `text/plain`               | `3`         |
-| `application/vnd.ms-excel` | `7`         |
-| `application/zip`          | `9`         |
-| `application/pdf`          | `11`        |
-| `application/typescript`   | `16`        |
-| `text/jsx`                 | `16`        |
-| `application/json`         | `16`        |
-| `application/octet-stream` | `0`         |
+| Gemini Flag | Internal Category           |
+| ----------- | --------------------------- |
+| `0`         | Unknown binary              |
+| `1`         | Images                      |
+| `2`         | Videos                      |
+| `3`         | Audio / Plain text          |
+| `7`         | Spreadsheets                |
+| `9`         | Archives                    |
+| `10`        | Word documents              |
+| `11`        | PDFs                        |
+| `12`        | Presentations               |
+| `16`        | Code / structured documents |
 
 ---
 
 # 🚀 Multimodal Upload Support
 
-The API supports:
+Gemini Nexus supports:
 
-* images
-* videos
-* spreadsheets
-* PDFs
-* archives
-* source code
-* markdown
-* structured documents
-* unknown binary files
+* image analysis
+* video uploads
+* PDF understanding
+* spreadsheet uploads
+* archive uploads
+* source code uploads
+* markdown and structured docs
+* developer project files
+* unknown binary attachments
 
-using the same attachment format used internally by Gemini Web.
+using the same upload structure used internally by Gemini Web.
 
 ---
 
-# 🛠️ Example Upload Payload
+# 🛠️ Example Attachment Payload
 
 ```json
 {
   "attachments": [
     {
-      "filename": "App.tsx",
-      "mime": "text/tsx",
-      "flag": 16
-    },
-    {
-      "filename": "photo.jpg",
-      "mime": "image/jpeg",
+      "filename": "photo.png",
+      "mime": "image/png",
       "flag": 1
     },
     {
       "filename": "report.pdf",
       "mime": "application/pdf",
       "flag": 11
+    },
+    {
+      "filename": "App.tsx",
+      "mime": "text/tsx",
+      "flag": 16
     }
   ]
 }
@@ -224,13 +254,20 @@ using the same attachment format used internally by Gemini Web.
 
 # 🧩 Important Notes
 
-* Unknown files are still accepted by Gemini using `application/octet-stream`
-* Different flags activate different Gemini processing pipelines
-* Images, PDFs, spreadsheets, and videos use specialized handling internally
-* The backend mirrors the real Gemini frontend upload behavior as closely as possible
+* Unknown files are still accepted using:
+
+```json
+{
+  "mime": "application/octet-stream",
+  "flag": 0
+}
+```
+
+* The backend dynamically routes uploads into Gemini processing pipelines.
+* Images, videos, spreadsheets, PDFs, and developer files use different internal handling.
+* The upload system closely mirrors the real Gemini frontend attachment behavior.
 
 ---
-
 
 
 ## 🔐 Authentication
