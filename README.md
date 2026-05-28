@@ -85,6 +85,154 @@ The model list is defined in `gemini_client.enums.Model`. The currently shipped 
 
 ---
 
+## 📂 Supported File Formats
+
+Gemini Nexus supports dynamic multimodal file uploads using the same attachment structure used internally by the Gemini web frontend.
+
+The backend automatically detects:
+
+* MIME type
+* Gemini attachment category
+* internal upload flag
+* processing pipeline
+
+No manual extension mapping is required for most formats.
+
+---
+
+# 🧠 Gemini Attachment Pipeline
+
+Each uploaded file is sent as:
+
+```json
+{
+  "upload_id": "...",
+  "mime": "...",
+  "flag": ...
+}
+```
+
+Where:
+
+| Field  | Purpose                             |
+| ------ | ----------------------------------- |
+| `mime` | Real file MIME type                 |
+| `flag` | Internal Gemini processing category |
+
+The backend dynamically detects both values automatically.
+
+---
+
+# 📦 Supported File Categories
+
+| Category                  | Extensions                                                                                                                                            | MIME Type                                   | Gemini Flag |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------- |
+| 🖼️ Images                | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.heic`, `.heif`, `.svg`, `.tiff`                                                                   | `image/*`                                   | `1`         |
+| 🎥 Videos                 | `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm`                                                                                                               | `video/*`                                   | `2`         |
+| 📄 Plain Text             | `.txt`                                                                                                                                                | `text/plain`                                | `3`         |
+| 📊 Spreadsheets           | `.xls`, `.xlsx`, `.csv`, `.ods`                                                                                                                       | `application/vnd.ms-excel`, etc             | `7`         |
+| 📦 Archives               | `.zip`, `.tar`, `.gz`, `.bz2`, `.7z`, `.rar`                                                                                                          | `application/zip`, `application/x-tar`, etc | `9`         |
+| 📕 PDFs                   | `.pdf`                                                                                                                                                | `application/pdf`                           | `11`        |
+| 💻 Code & Developer Files | `.py`, `.js`, `.ts`, `.tsx`, `.jsx`, `.java`, `.kt`, `.go`, `.rs`, `.php`, `.rb`, `.swift`, `.scala`, `.sh`, `.html`, `.xml`, `.json`, `.md`, `.yaml` | `text/*`, `application/json`, etc           | `16`        |
+| ❓ Unknown Binary          | unmapped extensions, `.m3u`, custom formats                                                                                                           | `application/octet-stream`                  | `0`         |
+
+---
+
+# ⚡ Dynamic MIME Detection
+
+The backend uses Python `mimetypes` for automatic MIME detection:
+
+```python
+import mimetypes
+
+mime, _ = mimetypes.guess_type(filename)
+```
+
+This means:
+
+* new formats automatically work
+* browser-compatible MIME behavior
+* no hardcoded extension lists required
+* future-proof upload handling
+
+---
+
+# 🔍 Dynamic Gemini Flag Routing
+
+Files are automatically routed into Gemini’s internal processing pipelines.
+
+Example routing:
+
+| MIME                       | Gemini Flag |
+| -------------------------- | ----------- |
+| `image/png`                | `1`         |
+| `video/mp4`                | `2`         |
+| `text/plain`               | `3`         |
+| `application/vnd.ms-excel` | `7`         |
+| `application/zip`          | `9`         |
+| `application/pdf`          | `11`        |
+| `application/typescript`   | `16`        |
+| `text/jsx`                 | `16`        |
+| `application/json`         | `16`        |
+| `application/octet-stream` | `0`         |
+
+---
+
+# 🚀 Multimodal Upload Support
+
+The API supports:
+
+* images
+* videos
+* spreadsheets
+* PDFs
+* archives
+* source code
+* markdown
+* structured documents
+* unknown binary files
+
+using the same attachment format used internally by Gemini Web.
+
+---
+
+# 🛠️ Example Upload Payload
+
+```json
+{
+  "attachments": [
+    {
+      "filename": "App.tsx",
+      "mime": "text/tsx",
+      "flag": 16
+    },
+    {
+      "filename": "photo.jpg",
+      "mime": "image/jpeg",
+      "flag": 1
+    },
+    {
+      "filename": "report.pdf",
+      "mime": "application/pdf",
+      "flag": 11
+    }
+  ]
+}
+```
+
+---
+
+# 🧩 Important Notes
+
+* Unknown files are still accepted by Gemini using `application/octet-stream`
+* Different flags activate different Gemini processing pipelines
+* Images, PDFs, spreadsheets, and videos use specialized handling internally
+* The backend mirrors the real Gemini frontend upload behavior as closely as possible
+
+---
+
+
+
 ## 🔐 Authentication
 
 Every API call uses a bearer token:
@@ -422,3 +570,6 @@ It sends requests to `/v1/models` and `/v1/chat/completions` using the same Open
 ## 📜 License
 
 MIT License.
+
+
+
