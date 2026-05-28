@@ -79,9 +79,7 @@ def detect_attachment_info(file_input: Union[bytes, str, Path], default_filename
                 '.jsx': 'text/jsx',
                 '.kt': 'text/x-kotlin',
                 '.md': 'text/markdown',
-                '.m3u': 'application/octet-stream',
-                '.java': 'text/x-java-source',
-                '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                '.m3u': 'application/octet-stream'
             }
             mime_type = custom_mimes.get(ext, "application/octet-stream")
             
@@ -96,8 +94,6 @@ def detect_attachment_info(file_input: Union[bytes, str, Path], default_filename
         gemini_type_id = 7
     elif mime_type in ["application/zip", "application/x-tar", "application/gzip", "application/x-bzip2"]:
         gemini_type_id = 9
-    elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        gemini_type_id = 10
     elif mime_type == "application/pdf":
         gemini_type_id = 11
     elif mime_type.startswith("text/") or mime_type in ["application/json", "application/typescript", "application/xml"]:

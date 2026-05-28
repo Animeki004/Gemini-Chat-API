@@ -187,8 +187,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
         bot = await AsyncChatbot.create(
             secure_1psid=cookies[0],
             secure_1psidts=cookies[1],
-            model=requested_model,
-            timeout=120  # INCREASED TIMEOUT to 120s to prevent stream cutoff for long generations
+            model=requested_model
         )
         
         session_data = db.get_api_key_session(api_key_token)
@@ -201,8 +200,6 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             async def stream_generator():
                 try:
                     cid, rid, chid = None, None, None
-                    prev_text = ""  # Track previous text to safely compute actual new text
-                    
                     async for result in bot.ask_stream(prompt, files=files_to_upload):
                         # Catch potential API/cookie errors during stream
                         if result.get("error"):
@@ -217,29 +214,10 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                             yield f"data: {json.dumps(error_chunk)}\n\n"
                             break
                         
-                        full_content = result.get("content", "")
+                        chunk_text = result.get("chunk", "")
                         cid = result.get("conversation_id")
                         rid = result.get("response_id")
                         chid = result.get("choice_id")
-                        
-                        # --- ROBUST DELTA CALCULATION ---
-                        # Instead of relying on core.py's potentially broken chunking, we calculate the exact delta here.
-                        # This prevents the stream from breaking if core.py shrinks the content string.
-                        chunk_text = ""
-                        if full_content:
-                            if full_content.startswith(prev_text):
-                                chunk_text = full_content[len(prev_text):]
-                            else:
-                                # Find common prefix if Gemini slightly rewrote the formatting of previous text
-                                common_len = 0
-                                for i in range(min(len(full_content), len(prev_text))):
-                                    if full_content[i] == prev_text[i]:
-                                        common_len += 1
-                                    else:
-                                        break
-                                chunk_text = full_content[common_len:]
-                            prev_text = full_content
-                        # --------------------------------
                         
                         # Extract and format images securely for JSON serialization
                         raw_imgs = result.get("images", [])
