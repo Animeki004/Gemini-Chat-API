@@ -47,64 +47,102 @@ class ChatCompletionRequest(BaseModel):
     presence_penalty: Optional[float] = 0.0
     frequency_penalty: Optional[float] = 0.0
     logit_bias: Optional[Dict[str, float]] = None
+    user: Optional[str] = None
+    seed: Optional[int] = None
+    response_format: Optional[Dict[str, str]] = None
+    tools: Optional[List[Dict[str, Any]]] = None
+    tool_choice: Optional[Union[str, Dict[str, Any]]] = None
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if not credentials:
-        raise HTTPException(status_code=401, detail="Missing authorization header")
-    if not db.verify_api_key(credentials.credentials):
-        raise HTTPException(status_code=401, detail="Invalid or expired API key")
-    return credentials.credentials
+    class Config:
+        extra = "ignore"  # Strongly prevents 422 errors
+
+class CookieUpdateRequest(BaseModel):
+    psid: str
+    psidts: str
+
+def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    details = db.get_api_key_details(credentials.credentials)
+    if not details or not details[0]: 
+        raise HTTPException(status_code=401, detail="Invalid or deactivated API Key")
+    return {"key": credentials.credentials, "allowed_models": details[1], "role": details[2]}
+
+def verify_admin_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    details = db.get_api_key_details(credentials.credentials)
+    if not details or not details[0]: 
+        raise HTTPException(status_code=401, detail="Invalid or deactivated API Key")
+    if details[2] != 'admin':
+        raise HTTPException(status_code=403, detail="API Key lacks 'admin' permissions required for this endpoint")
+    return {"key": credentials.credentials}
+
+# ==========================================
+# SECURE EXTENSION AUTO-HEALER ENDPOINTS
+# ==========================================
+@app.get("/v1/admin/cookie_status")
+async def check_cookie_status(admin_auth = Depends(verify_admin_key)):
+    """Extension securely polls this to see if intervention is needed."""
+    return {"needs_update": db.get_needs_update()}
+
+@app.post("/v1/admin/cookies")
+async def update_cookies_api(request: CookieUpdateRequest, admin_auth = Depends(verify_admin_key)):
+    """Extension pushes JSON Secure data packet here to fix cookies."""
+    db.update_cookies(request.psid, request.psidts)
+    db.set_needs_update(False) # Turn off the distress signal
+    
+    from admin_bot import bot, ADMIN_ID
+    if bot and ADMIN_ID:
+        try:
+            bot.send_message(ADMIN_ID, "✅ <b>Auto-Heal Complete:</b> The Chrome Extension securely intercepted the error and updated the database with fresh cookies!", parse_mode="HTML")
+        except: pass
+        
+    return {"status": "success", "message": "Secure payload accepted. Cookies updated."}
+
+@app.get("/v1/models")
+async def list_models(auth_data: dict = Depends(verify_api_key)):
+    allowed_models_str = auth_data["allowed_models"]
+    allowed_list = [m.strip() for m in allowed_models_str.split(",")] if allowed_models_str != "all" else None
+    
+    models_data = []
+    for m in Model:
+        if m == Model.UNSPECIFIED:
+            continue
+        if allowed_list and m.model_name not in allowed_list:
+            continue
+            
+        models_data.append({
+            "id": m.model_name,
+            "object": "model",
+            "created": int(time.time()),
+            "owned_by": "google",
+            "permission": [],
+            "root": m.model_name,
+            "parent": None,
+        })
+        
+    return {"object": "list", "data": models_data}
 
 @app.post("/v1/chat/completions")
-async def chat_completions(request: ChatCompletionRequest, token: str = Depends(verify_token)):
-    if not request.messages:
-        raise HTTPException(status_code=400, detail="Messages list cannot be empty")
-
-    api_key_token = token
-    session_data = db.get_api_key_session(api_key_token)
-    
-    if session_data is None:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-        
-    allowed_models, conversation_id, response_id, choice_id = session_data
-    
-    # Model Authorization Check
-    if allowed_models != 'all':
-        allowed_list = [m.strip() for m in allowed_models.split(',')]
-        if request.model not in allowed_list:
-            raise HTTPException(status_code=403, detail=f"Model '{request.model}' is not authorized for this API key. Allowed: {allowed_models}")
-
+async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Depends(verify_api_key)):
     cookies = db.get_cookies()
-    if not cookies or not cookies.get('psid'):
-        raise HTTPException(status_code=500, detail="Google Gemini cookies not configured in database. Run admin_bot.py to set them.")
-
-    # Initialize Bot Session
-    try:
-        gemini_model = Model.from_name(request.model)
-    except ValueError:
-        # Fallback to default if model isn't precisely mapped in enums
-        gemini_model = Model.UNSPECIFIED
-
-    try:
-        bot = await AsyncChatbot.create(
-            secure_1psid=cookies['psid'],
-            secure_1psidts=cookies.get('psidts', ''),
-            model=gemini_model
-        )
+    if not cookies or not cookies[0]:
+        raise HTTPException(status_code=500, detail="Gemini Cookies not set. Admin must set them via Telegram.")
+    
+    allowed_models_str = auth_data["allowed_models"]
+    allowed_list = [m.strip() for m in allowed_models_str.split(",")] if allowed_models_str != "all" else None
+    
+    if allowed_list and request.model not in allowed_list:
+        raise HTTPException(status_code=403, detail=f"Your API key does not have access to model: {request.model}.")
         
-        # Restore session memory if it exists
-        if conversation_id and response_id and choice_id:
-            bot.conversation_id = conversation_id
-            bot.response_id = response_id
-            bot.choice_id = choice_id
+    # Get the last message to process
+    last_msg_content = request.messages[-1].content if request.messages else ""
+    prompt_parts = []
+    files_to_upload = []
+    temp_files = []
+    prompt = ""
 
-        # Multi-modal extraction (Images & Files Aggregation)
-        prompt_parts = []
-        files_to_upload = []
-        temp_files = []
-        
-        if isinstance(request.messages[-1].content, list):
-            for item in request.messages[-1].content:
+    # Check for Vision/File Payload (List of Dictionaries/Objects)
+    if isinstance(last_msg_content, list):
+        for item in last_msg_content:
+            if isinstance(item, dict):
                 if item.get("type") == "text":
                     prompt_parts.append(item.get("text", ""))
                 elif item.get("type") in ["image_url", "file_url"]:
@@ -130,20 +168,52 @@ async def chat_completions(request: ChatCompletionRequest, token: str = Depends(
                             files_to_upload.append(tmp_path)
                             temp_files.append(tmp_path)
                         except Exception as e:
-                            print(f"Error decoding attachment: {e}")
-            prompt = "\n".join(prompt_parts)
-        else:
-            prompt = request.messages[-1].content
+                            print(f"Failed to decode base64 file: {e}")
+        prompt = "\n".join(prompt_parts).strip()
+        if not prompt and files_to_upload:
+            prompt = "Analyze the provided files/images."
+    else:
+        # Standard text message
+        prompt = str(last_msg_content) if last_msg_content else ""
+    
+    api_key_token = auth_data["key"]
 
-        # Handle Stream = True
+    try:
+        try:
+            requested_model = Model.from_name(request.model)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+                
+        bot = await AsyncChatbot.create(
+            secure_1psid=cookies[0],
+            secure_1psidts=cookies[1],
+            model=requested_model
+        )
+        
+        session_data = db.get_api_key_session(api_key_token)
+        if session_data and session_data["cid"]:
+            bot.conversation_id = session_data["cid"]
+            bot.response_id = session_data["rid"] or ""
+            bot.choice_id = session_data["chid"] or ""
+
         if request.stream:
             async def stream_generator():
                 try:
+                    cid, rid, chid = None, None, None
                     async for result in bot.ask_stream(prompt, files=files_to_upload):
+                        # Catch potential API/cookie errors during stream
                         if result.get("error"):
-                            yield f"data: {json.dumps({'error': result.get('content')})}\n\n"
+                            error_msg = result.get("content", "Unknown error")
+                            error_chunk = {
+                                "id": f"chatcmpl-{uuid.uuid4().hex}",
+                                "object": "chat.completion.chunk",
+                                "created": int(time.time()),
+                                "model": request.model,
+                                "choices": [{"index": 0, "delta": {"content": f"\n\n[Error: {error_msg}]"}, "finish_reason": "stop"}]
+                            }
+                            yield f"data: {json.dumps(error_chunk)}\n\n"
                             break
-
+                        
                         chunk_text = result.get("chunk", "")
                         cid = result.get("conversation_id")
                         rid = result.get("response_id")
@@ -176,12 +246,21 @@ async def chat_completions(request: ChatCompletionRequest, token: str = Depends(
                             yield f"data: {json.dumps(chunk_json)}\n\n"
 
                     # Update persistent conversation session after stream is fully complete
-                    if cid and rid and chid:
+                    if cid:
                         db.update_api_key_session(api_key_token, cid, rid, chid)
-
+                        
+                    # Emit final finish_reason block
+                    finish_chunk = {
+                        "id": f"chatcmpl-{uuid.uuid4().hex}",
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": request.model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
+                    }
+                    yield f"data: {json.dumps(finish_chunk)}\n\n"
                     yield "data: [DONE]\n\n"
-                
                 finally:
+                    # Crucial: Close network session once streaming ends
                     await bot.session.close()
                     # Clean up temporary uploaded files
                     for p in temp_files:
@@ -193,50 +272,54 @@ async def chat_completions(request: ChatCompletionRequest, token: str = Depends(
 
             return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
-        # Handle Stream = False
-        response = await bot.ask(prompt, files=files_to_upload)
-        
-        db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id)
-        await bot.session.close()
-        
-        # Clean up temporary files
-        for p in temp_files:
-            if os.path.exists(p):
-                try:
-                    os.remove(p)
-                except:
-                    pass
-
-        if response.get("error"):
-            raise HTTPException(status_code=500, detail=response.get("content"))
+        else:
+            # STANDARD SYNCHRONOUS REQUEST (Non-Streaming)
+            # Pass both prompt and potentially parsed files to core.py logic
+            response = await bot.ask(prompt, files=files_to_upload)
             
-        # Safely extract text from nested lists if present
-        raw_content = response.get("content", "")
-        def extract_text(item: Any) -> str:
-            if isinstance(item, str):
-                return item
-            elif isinstance(item, list):
-                return "".join(extract_text(x) for x in item if x is not None)
-            return str(item) if item is not None else ""
+            db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id)
+            await bot.session.close()
             
-        final_content = extract_text(raw_content).strip()
+            # Clean up temporary uploaded files
+            for p in temp_files:
+                if os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except:
+                        pass
 
-        # Extract images for non-streaming mode
-        raw_imgs = response.get("images", [])
-        safe_imgs = []
-        for img in raw_imgs:
-            if hasattr(img, 'url'):
-                safe_imgs.append({"url": img.url, "title": getattr(img, 'title', 'Image')})
-            elif isinstance(img, dict) and 'url' in img:
-                safe_imgs.append({"url": img['url'], "title": img.get('title', 'Image')})
+            if response.get("error"):
+                raise HTTPException(status_code=500, detail=str(response.get("content", "Unknown error occurred.")))
+                
+            # ROBUST TEXT EXTRACTION:
+            # Prevents "Blank UI Box" by forcing Gemini's nested list responses into strings
+            raw_content = response.get("content") or ""
+            
+            def extract_text(item: Any) -> str:
+                if isinstance(item, str):
+                    return item
+                elif isinstance(item, list):
+                    return "".join(extract_text(x) for x in item if x is not None)
+                return str(item) if item is not None else ""
+                
+            final_content = extract_text(raw_content).strip()
 
-        return {
-            "id": f"chatcmpl-{uuid.uuid4().hex}",
-            "object": "chat.completion",
-            "created": int(time.time()),
-            "model": request.model,
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content, "images": safe_imgs}, "finish_reason": "stop"}]
-        }
+            # Extract images for non-streaming mode
+            raw_imgs = response.get("images", [])
+            safe_imgs = []
+            for img in raw_imgs:
+                if hasattr(img, 'url'):
+                    safe_imgs.append({"url": img.url, "title": getattr(img, 'title', 'Image')})
+                elif isinstance(img, dict) and 'url' in img:
+                    safe_imgs.append({"url": img['url'], "title": img.get('title', 'Image')})
+
+            return {
+                "id": f"chatcmpl-{uuid.uuid4().hex}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content, "images": safe_imgs}, "finish_reason": "stop"}]
+            }
 
     except HTTPException:
         raise
@@ -251,41 +334,6 @@ async def chat_completions(request: ChatCompletionRequest, token: str = Depends(
             # Flood Control: Only alert Telegram once every 5 minutes
             if db.check_and_set_alert_flood(cooldown_seconds=300):
                 from admin_bot import send_admin_alert
-                send_admin_alert("Cookies expired! Notifying Chrome Extension Auto-Healer.")
-            
-            raise HTTPException(status_code=401, detail="Gemini Cookies Expired. The Auto-Healer extension has been signaled to update them automatically. Please try again in a moment.")
-            
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/v1/models")
-async def list_models(token: str = Depends(verify_token)):
-    api_key_token = token
-    session_data = db.get_api_key_session(api_key_token)
-    
-    if session_data is None:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-        
-    allowed_models = session_data[0]
-    
-    # Core Gemini Models Mapping
-    models = [
-        {"id": "gemini-1.5-pro", "object": "model", "created": int(time.time()), "owned_by": "google"},
-        {"id": "gemini-1.5-flash", "object": "model", "created": int(time.time()), "owned_by": "google"},
-        {"id": "gemini-1.0-pro", "object": "model", "created": int(time.time()), "owned_by": "google"},
-        {"id": "gemini-advanced", "object": "model", "created": int(time.time()), "owned_by": "google"},
-        {"id": "gemini-2.0-flash-exp", "object": "model", "created": int(time.time()), "owned_by": "google"},
-        {"id": "gemini-2.0-pro-exp", "object": "model", "created": int(time.time()), "owned_by": "google"},
-        {"id": "gemini-2.0-flash-thinking-exp", "object": "model", "created": int(time.time()), "owned_by": "google"},
-        {"id": "gemini-exp-1206", "object": "model", "created": int(time.time()), "owned_by": "google"},
-        {"id": "learnlm-1.5-pro-experimental", "object": "model", "created": int(time.time()), "owned_by": "google"}
-    ]
-
-    # Filter by user's assigned scope
-    if allowed_models != 'all':
-        allowed_list = [m.strip() for m in allowed_models.split(',')]
-        models = [m for m in models if m["id"] in allowed_list]
-
-    return {
-        "object": "list",
-        "data": models
-    }
+                send_admin_alert("Cookies expired! Notifying Chrome Extension Auto-Healer to execute payload...")
+                
+        raise HTTPException(status_code=500, detail=error_str)
