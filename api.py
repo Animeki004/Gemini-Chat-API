@@ -200,58 +200,89 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             async def stream_generator():
                 try:
                     cid, rid, chid = None, None, None
-                    async for result in bot.ask_stream(prompt, files=files_to_upload):
-                        # Catch potential API/cookie errors during stream
-                        if result.get("error"):
-                            # RESET SESSION: Clear invalid conversation bindings on error
-                            db.update_api_key_session(api_key_token, None, None, None)
-                            cid = None # Prevent the final block from re-saving a bad session
-                            
-                            error_msg = result.get("content", "Unknown error")
-                            error_chunk = {
-                                "id": f"chatcmpl-{uuid.uuid4().hex}",
-                                "object": "chat.completion.chunk",
-                                "created": int(time.time()),
-                                "model": request.model,
-                                "choices": [{"index": 0, "delta": {"content": f"\n\n[Error: {error_msg}]"}, "finish_reason": "stop"}]
-                            }
-                            yield f"data: {json.dumps(error_chunk)}\n\n"
-                            break
-                        
-                        chunk_text = result.get("chunk", "")
-                        cid = result.get("conversation_id")
-                        rid = result.get("response_id")
-                        chid = result.get("choice_id")
-                        
-                        # Extract and format images securely for JSON serialization
-                        raw_imgs = result.get("images", [])
-                        safe_imgs = []
-                        for img in raw_imgs:
-                            if hasattr(img, 'url'):
-                                safe_imgs.append({"url": img.url, "title": getattr(img, 'title', 'Image')})
-                            elif isinstance(img, dict) and 'url' in img:
-                                safe_imgs.append({"url": img['url'], "title": img.get('title', 'Image')})
-                        
-                        # Emit the live text chunk and images
-                        if chunk_text or safe_imgs:
-                            delta_data = {}
-                            if chunk_text:
-                                delta_data["content"] = chunk_text
-                            if safe_imgs:
-                                delta_data["images"] = safe_imgs
+                    has_content = False
+                    
+                    try:
+                        async for result in bot.ask_stream(prompt, files=files_to_upload):
+                            # Catch potential API/cookie errors returned elegantly during stream
+                            if result.get("error"):
+                                # RESET SESSION: Clear invalid conversation bindings on error
+                                db.update_api_key_session(api_key_token, None, None, None)
+                                cid = None # Prevent the final block from re-saving a bad session
                                 
-                            chunk_json = {
-                                "id": f"chatcmpl-{uuid.uuid4().hex}",
-                                "object": "chat.completion.chunk",
-                                "created": int(time.time()),
-                                "model": request.model,
-                                "choices": [{"index": 0, "delta": delta_data, "finish_reason": None}]
-                            }
-                            yield f"data: {json.dumps(chunk_json)}\n\n"
+                                error_msg = result.get("content", "Unknown error")
+                                error_chunk = {
+                                    "id": f"chatcmpl-{uuid.uuid4().hex}",
+                                    "object": "chat.completion.chunk",
+                                    "created": int(time.time()),
+                                    "model": request.model,
+                                    "choices": [{"index": 0, "delta": {"content": f"\n\n[Error: {error_msg}]"}, "finish_reason": "stop"}]
+                                }
+                                yield f"data: {json.dumps(error_chunk)}\n\n"
+                                break
+                            
+                            chunk_text = result.get("chunk", "")
+                            cid = result.get("conversation_id")
+                            rid = result.get("response_id")
+                            chid = result.get("choice_id")
+                            
+                            # Extract and format images securely for JSON serialization
+                            raw_imgs = result.get("images", [])
+                            safe_imgs = []
+                            for img in raw_imgs:
+                                if hasattr(img, 'url'):
+                                    safe_imgs.append({"url": img.url, "title": getattr(img, 'title', 'Image')})
+                                elif isinstance(img, dict) and 'url' in img:
+                                    safe_imgs.append({"url": img['url'], "title": img.get('title', 'Image')})
+                            
+                            # Emit the live text chunk and images
+                            if chunk_text or safe_imgs:
+                                has_content = True
+                                delta_data = {}
+                                if chunk_text:
+                                    delta_data["content"] = chunk_text
+                                if safe_imgs:
+                                    delta_data["images"] = safe_imgs
+                                    
+                                chunk_json = {
+                                    "id": f"chatcmpl-{uuid.uuid4().hex}",
+                                    "object": "chat.completion.chunk",
+                                    "created": int(time.time()),
+                                    "model": request.model,
+                                    "choices": [{"index": 0, "delta": delta_data, "finish_reason": None}]
+                                }
+                                yield f"data: {json.dumps(chunk_json)}\n\n"
+                                
+                    except Exception as stream_e:
+                        # Catch exceptions that occur INSIDE the async generator and bypass the outer try/except
+                        db.update_api_key_session(api_key_token, None, None, None)
+                        cid = None
+                        error_str = str(stream_e)
+                        
+                        # SMART AUTO-HEALER TRIGGER inside the generator
+                        if any(kw in error_str.lower() for kw in ["cookie", "snlm0e", "auth", "permission", "status: 40", "status: 50"]):
+                            db.set_needs_update(True)
+                            if db.check_and_set_alert_flood(cooldown_seconds=300):
+                                try:
+                                    from admin_bot import send_admin_alert
+                                    send_admin_alert("Cookies expired! Notifying Chrome Extension Auto-Healer to execute payload...")
+                                except: pass
+                                
+                        error_chunk = {
+                            "id": f"chatcmpl-{uuid.uuid4().hex}",
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": request.model,
+                            "choices": [{"index": 0, "delta": {"content": f"\n\n[Stream Error: {error_str}]"}, "finish_reason": "stop"}]
+                        }
+                        yield f"data: {json.dumps(error_chunk)}\n\n"
 
-                    # Update persistent conversation session ONLY if no errors cleared cid
-                    if cid:
+                    # Update persistent conversation session ONLY if we successfully got content and no errors cleared cid
+                    if cid and has_content:
                         db.update_api_key_session(api_key_token, cid, rid, chid)
+                    else:
+                        # Blank response or error -> Reset session immediately
+                        db.update_api_key_session(api_key_token, None, None, None)
                         
                     # Emit final finish_reason block
                     finish_chunk = {
@@ -348,7 +379,9 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             
             # Flood Control: Only alert Telegram once every 5 minutes
             if db.check_and_set_alert_flood(cooldown_seconds=300):
-                from admin_bot import send_admin_alert
-                send_admin_alert("Cookies expired! Notifying Chrome Extension Auto-Healer to execute payload...")
+                try:
+                    from admin_bot import send_admin_alert
+                    send_admin_alert("Cookies expired! Notifying Chrome Extension Auto-Healer to execute payload...")
+                except: pass
                 
         raise HTTPException(status_code=500, detail=error_str)
