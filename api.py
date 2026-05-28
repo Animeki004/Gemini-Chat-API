@@ -257,25 +257,34 @@ async def chat_completions(request: ChatCompletionRequest, token: str = Depends(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/v1/models")
-async def list_models(auth_data: dict = Depends(verify_token)):
-    allowed_models_str = auth_data["allowed_models"]
-    allowed_list = [m.strip() for m in allowed_models_str.split(",")] if allowed_models_str != "all" else None
+async def list_models(token: str = Depends(verify_token)):
+    api_key_token = token
+    session_data = db.get_api_key_session(api_key_token)
     
-    models_data = []
-    for m in Model:
-        if m == Model.UNSPECIFIED:
-            continue
-        if allowed_list and m.model_name not in allowed_list:
-            continue
-            
-        models_data.append({
-            "id": m.model_name,
-            "object": "model",
-            "created": int(time.time()),
-            "owned_by": "google",
-            "permission": [],
-            "root": m.model_name,
-            "parent": None,
-        })
+    if session_data is None:
+        raise HTTPException(status_code=401, detail="Invalid API key")
         
-    return {"object": "list", "data": models_data}
+    allowed_models = session_data[0]
+    
+    # Core Gemini Models Mapping
+    models = [
+        {"id": "gemini-1.5-pro", "object": "model", "created": int(time.time()), "owned_by": "google"},
+        {"id": "gemini-1.5-flash", "object": "model", "created": int(time.time()), "owned_by": "google"},
+        {"id": "gemini-1.0-pro", "object": "model", "created": int(time.time()), "owned_by": "google"},
+        {"id": "gemini-advanced", "object": "model", "created": int(time.time()), "owned_by": "google"},
+        {"id": "gemini-2.0-flash-exp", "object": "model", "created": int(time.time()), "owned_by": "google"},
+        {"id": "gemini-2.0-pro-exp", "object": "model", "created": int(time.time()), "owned_by": "google"},
+        {"id": "gemini-2.0-flash-thinking-exp", "object": "model", "created": int(time.time()), "owned_by": "google"},
+        {"id": "gemini-exp-1206", "object": "model", "created": int(time.time()), "owned_by": "google"},
+        {"id": "learnlm-1.5-pro-experimental", "object": "model", "created": int(time.time()), "owned_by": "google"}
+    ]
+
+    # Filter by user's assigned scope
+    if allowed_models != 'all':
+        allowed_list = [m.strip() for m in allowed_models.split(',')]
+        models = [m for m in models if m["id"] in allowed_list]
+
+    return {
+        "object": "list",
+        "data": models
+    }
