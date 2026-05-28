@@ -203,7 +203,13 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                     async for result in bot.ask_stream(prompt, files=files_to_upload):
                         # Catch potential API/cookie errors during stream
                         if result.get("error"):
-                            error_msg = result.get("content", "Unknown error")
+                            error_msg = str(result.get("content", "Unknown error"))
+                            
+                            # SMART SESSION RESET: Detect Account Change Mismatch
+                            if any(code in error_msg for code in ["400", "404", "not found", "invalid argument"]):
+                                db.update_api_key_session(api_key_token, "", "", "")
+                                error_msg += " ->  Your invalid session was wiped! Please retry to start a fresh chat."
+
                             error_chunk = {
                                 "id": f"chatcmpl-{uuid.uuid4().hex}",
                                 "object": "chat.completion.chunk",
@@ -274,7 +280,6 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
 
         else:
             # STANDARD SYNCHRONOUS REQUEST (Non-Streaming)
-            # Pass both prompt and potentially parsed files to core.py logic
             response = await bot.ask(prompt, files=files_to_upload)
             
             db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id)
@@ -289,10 +294,14 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                         pass
 
             if response.get("error"):
-                raise HTTPException(status_code=500, detail=str(response.get("content", "Unknown error occurred.")))
+                error_msg = str(response.get("content", "Unknown error occurred."))
+                # SMART SESSION RESET: Detect Account Change Mismatch
+                if any(code in error_msg for code in ["400", "404", "not found", "invalid argument"]):
+                    db.update_api_key_session(api_key_token, "", "", "")
+                    raise HTTPException(status_code=500, detail=f"{error_msg} -> 🔄 Account switch detected. Your invalid session was wiped! Please retry to start a fresh chat.")
+                raise HTTPException(status_code=500, detail=error_msg)
                 
             # ROBUST TEXT EXTRACTION:
-            # Prevents "Blank UI Box" by forcing Gemini's nested list responses into strings
             raw_content = response.get("content") or ""
             
             def extract_text(item: Any) -> str:
@@ -325,6 +334,11 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
         raise
     except Exception as e:
         error_str = str(e)
+
+        # SMART SESSION RESET FALLBACK (Outer catch)
+        if any(code in error_str for code in ["400", "404", "not found", "invalid argument"]) and "conversation" in error_str.lower():
+            db.update_api_key_session(api_key_token, "", "", "")
+            raise HTTPException(status_code=500, detail="🔄 Account switch detected! Old conversation session wiped. Please retry your request.")
         
         # SMART AUTO-HEALER TRIGGER & FLOOD CONTROL
         if any(kw in error_str.lower() for kw in ["cookie", "snlm0e", "auth", "permission", "status: 40", "status: 50"]):
