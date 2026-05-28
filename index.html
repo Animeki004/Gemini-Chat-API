@@ -85,25 +85,12 @@
             100% { opacity: 0.2; }
         }
 
-
         /* Beautiful Three Dot Typing Indicator */
-        .typing-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 8px 4px;
-        }
-        .typing-dot {
-            width: 6px;
-            height: 6px;
-            background-color: #a1a1aa;
-            border-radius: 50%;
+        .typing-indicator div {
             animation: typing-bounce 1.4s infinite ease-in-out both;
         }
-        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
-        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
         @keyframes typing-bounce {
-            0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
+            0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
             40% { transform: scale(1); opacity: 1; }
         }
 
@@ -194,7 +181,7 @@
             <!-- Content gets injected here by renderChat() -->
         </div>
 
-        <!-- Empty State Placeholder (Managed by JS) -->
+        <!-- Empty State Placeholder -->
         <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-20 z-0">
             <div class="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg mb-6">
                 <svg class="w-10 h-10 text-gray-900" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-12h2v6h-2zm0 8h2v2h-2z"/></svg>
@@ -202,26 +189,21 @@
             <h2 class="text-2xl font-semibold text-gray-200">How can I help you today?</h2>
         </div>
 
-        <!-- Input Area (Fixed at Bottom) -->
+        <!-- Input Area -->
         <div class="shrink-0 px-4 md:px-8 pb-6 pt-2 bg-gradient-to-t from-gray-850 via-gray-850 to-transparent">
             <div class="max-w-3xl mx-auto w-full relative">
                 
-                <!-- Image Preview Popup for Uploading -->
-                <div id="imagePreviewContainer" class="hidden absolute bottom-full mb-3 left-0 bg-gray-800 border border-gray-700 rounded-xl p-2 shadow-xl z-10">
-                    <div class="relative group">
-                        <img id="imagePreview" src="" class="h-16 w-16 object-cover rounded-lg border border-gray-700">
-                        <button type="button" onclick="removeImage()" class="absolute -top-2 -right-2 bg-gray-900 hover:bg-gray-700 text-white rounded-full p-1 shadow-md transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 border border-gray-600">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                    </div>
+                <!-- Multi-File Attachment Preview Container -->
+                <div id="attachmentsPreview" class="hidden absolute bottom-full mb-3 left-0 bg-gray-800 border border-gray-700 rounded-xl p-3 shadow-xl z-10 w-full max-w-full overflow-x-auto flex gap-3 scroll-smooth">
+                    <!-- Files injected dynamically -->
                 </div>
 
                 <!-- Input Box Container -->
                 <div class="relative flex items-end bg-gray-800 rounded-2xl shadow-lg border border-gray-700 focus-within:border-gray-500 transition-colors">
                     
-                    <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+                    <input type="file" id="fileInput" multiple accept="*/*" class="hidden" onchange="handleFileUpload(event)">
                     
-                    <button type="button" onclick="document.getElementById('imageInput').click()" class="p-3.5 text-gray-400 hover:text-gray-200 transition-colors rounded-l-2xl flex-shrink-0 mb-0.5" title="Attach Image">
+                    <button type="button" onclick="document.getElementById('fileInput').click()" class="p-3.5 text-gray-400 hover:text-gray-200 transition-colors rounded-l-2xl flex-shrink-0 mb-0.5" title="Attach Files">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                     </button>
 
@@ -401,7 +383,7 @@
     <!-- Main Application Logic -->
     <script>
         let messageHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
-        let selectedImageBase64 = null;
+        let selectedFiles = []; // Upgraded to array for multiple files
         let isGenerating = false;
 
         // --- FULLSCREEN IMAGE PREVIEW HANDLERS ---
@@ -432,7 +414,6 @@
                     window.URL.revokeObjectURL(blobUrl);
                     a.remove();
                 } catch (error) {
-                    // Fallback to direct opening/downloading if CORS blocks blob fetch
                     const a = document.createElement('a');
                     a.href = url;
                     a.target = '_blank';
@@ -443,30 +424,30 @@
                 }
             };
             
-                modal.classList.remove('hidden');
-                modal.classList.add('flex'); // Fix centering by explicitly activating flexbox
-                // Trigger reflow to ensure transition works
-                void modal.offsetWidth;
-                
-                modal.classList.remove('opacity-0');
-                img.classList.remove('scale-95');
-                img.classList.add('scale-100');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex'); // Fix centering by explicitly activating flexbox
+            // Trigger reflow to ensure transition works
+            void modal.offsetWidth;
+            
+            modal.classList.remove('opacity-0');
+            img.classList.remove('scale-95');
+            img.classList.add('scale-100');
         }
 
-            function closeImageModal() {
-                const modal = document.getElementById('fullscreenModal');
-                const img = document.getElementById('fullscreenImage');
-                
-                modal.classList.add('opacity-0');
-                img.classList.remove('scale-100');
-                img.classList.add('scale-95');
-                
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                    modal.classList.remove('flex'); // Clean up flexbox on close
-                    img.src = '';
-                }, 300);
-            }
+        function closeImageModal() {
+            const modal = document.getElementById('fullscreenModal');
+            const img = document.getElementById('fullscreenImage');
+            
+            modal.classList.add('opacity-0');
+            img.classList.remove('scale-100');
+            img.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex'); // Clean up flexbox on close
+                img.src = '';
+            }, 300);
+        }
 
         // Global Esc key listener for the modal
         document.addEventListener('keydown', function(e) {
@@ -528,7 +509,7 @@
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 192) + 'px'; 
             if(this.value.trim() === '') this.style.height = 'auto';
-            sendBtn.disabled = this.value.trim() === '' && !selectedImageBase64;
+            sendBtn.disabled = this.value.trim() === '' && selectedFiles.length === 0;
         });
 
         messageInput.addEventListener('keydown', function(e) {
@@ -543,41 +524,93 @@
             mobileOverlay.classList.toggle('hidden');
         }
 
-        function handleImageUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+        // --- DYNAMIC MULTI-FILE UPLOADER ---
+        function handleFileUpload(event) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    const MAX_DIM = 800;
-                    let { width, height } = img;
-
-                    if (width > height && width > MAX_DIM) { height *= MAX_DIM / width; width = MAX_DIM; }
-                    else if (height > MAX_DIM) { width *= MAX_DIM / height; height = MAX_DIM; }
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const dataUrl = e.target.result;
+                    const isImage = file.type.startsWith('image/');
                     
-                    canvas.width = width; canvas.height = height;
-                    ctx.drawImage(img, 0, 0, width, height);
+                    if (isImage) {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            const MAX_DIM = 800;
+                            let { width, height } = img;
 
-                    selectedImageBase64 = canvas.toDataURL('image/jpeg', 0.85);
-                    document.getElementById('imagePreviewContainer').classList.remove('hidden');
-                    document.getElementById('imagePreview').src = selectedImageBase64;
-                    sendBtn.disabled = false;
+                            if (width > height && width > MAX_DIM) { height *= MAX_DIM / width; width = MAX_DIM; }
+                            else if (height > MAX_DIM) { width *= MAX_DIM / height; height = MAX_DIM; }
+                            
+                            canvas.width = width; canvas.height = height;
+                            ctx.drawImage(img, 0, 0, width, height);
+
+                            selectedFiles.push({
+                                name: file.name,
+                                url: canvas.toDataURL('image/jpeg', 0.85),
+                                isImage: true
+                            });
+                            renderAttachmentsPreview();
+                        };
+                        img.src = dataUrl;
+                    } else {
+                        selectedFiles.push({
+                            name: file.name,
+                            url: dataUrl,
+                            isImage: false
+                        });
+                        renderAttachmentsPreview();
+                    }
                 };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
+                reader.readAsDataURL(file);
+            });
             event.target.value = ''; 
         }
 
-        function removeImage() {
-            selectedImageBase64 = null;
-            document.getElementById('imagePreviewContainer').classList.add('hidden');
-            document.getElementById('imagePreview').src = '';
-            if (messageInput.value.trim() === '') sendBtn.disabled = true;
+        function renderAttachmentsPreview() {
+            const container = document.getElementById('attachmentsPreview');
+            if (selectedFiles.length === 0) {
+                container.classList.add('hidden');
+                sendBtn.disabled = messageInput.value.trim() === '';
+                return;
+            }
+            
+            container.classList.remove('hidden');
+            sendBtn.disabled = false;
+            container.innerHTML = '';
+            
+            selectedFiles.forEach((file, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'relative group shrink-0';
+                
+                if (file.isImage) {
+                    wrapper.innerHTML = `<img src="${file.url}" class="h-16 w-16 object-cover rounded-lg border border-gray-700">`;
+                } else {
+                    const ext = (file.name.split('.').pop() || 'FILE').toUpperCase();
+                    wrapper.innerHTML = `
+                        <div class="h-16 w-16 rounded-lg border border-gray-700 bg-gray-900 flex flex-col items-center justify-center p-1" title="${file.name}">
+                            <svg class="w-6 h-6 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                            <span class="text-[9px] text-gray-300 font-mono truncate w-full text-center px-1">${ext}</span>
+                        </div>
+                    `;
+                }
+                
+                wrapper.innerHTML += `
+                    <button type="button" onclick="removeAttachment(${index})" class="absolute -top-2 -right-2 bg-gray-900 hover:bg-gray-700 text-white rounded-full p-1 shadow-md transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 border border-gray-600">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                `;
+                container.appendChild(wrapper);
+            });
+        }
+
+        function removeAttachment(index) {
+            selectedFiles.splice(index, 1);
+            renderAttachmentsPreview();
         }
 
         function saveChatState() {
@@ -656,7 +689,6 @@
             return '';
         }
 
-        // Action Handlers
         function copyMessageIndex(index, btn) {
             const text = extractTextFromMsg(messageHistory[index]);
             fallbackCopyTextToClipboard(text);
@@ -669,24 +701,20 @@
         function replyToMessage(index) {
             if (isGenerating) return;
             const text = extractTextFromMsg(messageHistory[index]);
-            // Format as markdown blockquote
             const quote = text.split('\n').map(line => `> ${line}`).join('\n');
             messageInput.value = `${quote}\n\n`;
-            messageInput.dispatchEvent(new Event('input')); // auto-resize
+            messageInput.dispatchEvent(new Event('input')); 
             messageInput.focus();
         }
 
         async function regenerateResponse() {
             if (isGenerating || messageHistory.length < 2) return;
-            // Pop the last assistant message
             if (messageHistory[messageHistory.length - 1].role === 'assistant') {
                 messageHistory.pop();
             }
-            // Trigger generation with remaining history
             await triggerGenerationStream();
         }
 
-        // Edit UI Handlers
         function showEditUI(index) {
             if (isGenerating) return;
             const wrapper = document.getElementById(`msg-wrapper-${index}`);
@@ -695,10 +723,7 @@
             
             const text = extractTextFromMsg(messageHistory[index]);
             
-            // Hide action bar while editing
             actionBar.style.display = 'none';
-            
-            // Transform bubble into edit field
             bubble.classList.remove('px-5', 'py-3', 'bg-gray-800');
             bubble.classList.add('p-0', 'bg-transparent', 'w-full');
             
@@ -727,7 +752,6 @@
             
             if (!newText) { renderChat(); return; }
 
-            // Safely update the history object
             let msg = messageHistory[index];
             if (Array.isArray(msg.content)) {
                 let textItem = msg.content.find(c => c.type === 'text');
@@ -737,14 +761,12 @@
                 messageHistory[index].content = newText;
             }
             
-            // Truncate history (forget everything after this edited message)
             messageHistory = messageHistory.slice(0, index + 1);
             saveChatState();
             
             await triggerGenerationStream();
         }
 
-        // Generate the DOM structure for a single chat bubble
         function createBubbleNode(role, isLastAI = false, index = -1) {
             const wrapper = document.createElement('div');
             wrapper.id = `msg-wrapper-${index}`;
@@ -760,7 +782,6 @@
                 const bubble = document.createElement('div');
                 bubble.className = 'user-bubble-content bg-gray-800 text-gray-100 rounded-3xl px-5 py-3 shadow-sm whitespace-pre-wrap w-fit break-words';
                 
-                // Professional Action Bar for User
                 const actionBar = document.createElement('div');
                 actionBar.className = 'user-action-bar mt-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pr-3';
                 actionBar.innerHTML = `
@@ -779,7 +800,6 @@
                 
                 return { wrapper, contentNode: bubble, actionBar };
             } else {
-                // Avatar
                 const avatar = document.createElement('div');
                 avatar.className = `w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-white mt-1 shadow-sm`;
                 avatar.innerHTML = `<svg class="w-5 h-5 text-gray-900" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-12h2v6h-2zm0 8h2v2h-2z"/></svg>`;
@@ -790,7 +810,6 @@
                 const bubble = document.createElement('div');
                 bubble.className = 'markdown-body pt-1';
                 
-                // Professional Action Bar for AI
                 const actionBar = document.createElement('div');
                 actionBar.className = 'mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200';
                 
@@ -814,7 +833,6 @@
             }
         }
 
-        // Global Render Loop for perfect state sync
         function renderChat() {
             chatBox.innerHTML = '';
             
@@ -831,9 +849,29 @@
                 if (msg.role === 'user') {
                     if (Array.isArray(msg.content)) {
                         let text = msg.content.find(c => c.type === 'text')?.text || '';
-                        let img = msg.content.find(c => c.type === 'image_url')?.image_url?.url || '';
                         let html = '';
-                        if (img) html += `<img src="${img}" class="max-w-full h-auto rounded-xl mb-3 border border-gray-700 max-h-64 object-contain">`;
+                        
+                        const attachments = msg.content.filter(c => c.type === 'file_url' || c.type === 'image_url');
+                        if (attachments.length > 0) {
+                            html += `<div class="flex flex-wrap gap-2 mb-3 justify-end">`;
+                            attachments.forEach(att => {
+                                const url = att.file_url?.url || att.image_url?.url;
+                                const name = att.file_url?.name || "image.jpg";
+                                if (url.startsWith('data:image/')) {
+                                    html += `<img src="${url}" onclick="openImageModal('${url}', '${name}')" class="h-20 object-contain rounded-lg border border-gray-700 cursor-pointer hover:opacity-90">`;
+                                } else {
+                                    const ext = (name.split('.').pop() || 'FILE').toUpperCase();
+                                    html += `
+                                        <div class="h-20 w-20 rounded-lg border border-gray-700 bg-gray-900 flex flex-col items-center justify-center p-2" title="${name}">
+                                            <svg class="w-6 h-6 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                                            <span class="text-[10px] text-gray-300 font-mono truncate w-full text-center">${ext}</span>
+                                        </div>
+                                    `;
+                                }
+                            });
+                            html += `</div>`;
+                        }
+                        
                         if (text) html += `<div>${text}</div>`;
                         nodeData.contentNode.innerHTML = html;
                     } else {
@@ -843,23 +881,20 @@
                     nodeData.contentNode.innerHTML = marked.parse(msg.content || '');
                     applyMonacoEditors(nodeData.contentNode);
                     
-                    // --- AI CAROUSEL RENDERER ---
                     if (msg.images && msg.images.length > 0) {
                         const carouselId = `carousel-${index}`;
                         let carouselHTML = `<div class="mt-4 relative w-full max-w-lg rounded-xl overflow-hidden bg-[#0d0d0d] border border-gray-700 group shadow-lg">`;
                         
-                        // Image Track
                         carouselHTML += `<div id="${carouselId}-track" class="flex transition-transform duration-300 ease-out" style="transform: translateX(0%); width: 100%;">`;
                         msg.images.forEach((img, i) => {
                             const url = img.url || img;
-                            const title = (img.title || 'Image').replace(/'/g, "\\'"); // escape single quotes for onclick
+                            const title = (img.title || 'Image').replace(/'/g, "\\'"); 
                             carouselHTML += `<div class="w-full shrink-0 flex items-center justify-center p-2">
                                 <img src="${url}" onclick="openImageModal('${url}', '${title}')" class="max-h-80 object-contain rounded-lg cursor-pointer hover:opacity-90 transition-opacity">
                             </div>`;
                         });
                         carouselHTML += `</div>`;
                         
-                        // Add Navigation/Dots only if there are multiple images
                         if (msg.images.length > 1) {
                             carouselHTML += `
                                 <button onclick="window.moveCarousel('${carouselId}', -1, ${msg.images.length})" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -877,7 +912,6 @@
                         }
                         carouselHTML += `</div>`;
                         
-                        // Append carousel safely beneath text
                         nodeData.contentNode.insertAdjacentHTML('beforeend', carouselHTML);
                     }
                 }
@@ -890,20 +924,24 @@
 
         async function sendMessage() {
             const text = messageInput.value.trim();
-            if (!text && !selectedImageBase64) return;
+            if (!text && selectedFiles.length === 0) return;
 
             let msgContent = text;
-            if (selectedImageBase64) {
-                msgContent = [
-                    { type: "text", text: text || "Describe this image" },
-                    { type: "image_url", image_url: { url: selectedImageBase64 } }
-                ];
+            if (selectedFiles.length > 0) {
+                msgContent = [{ type: "text", text: text || "Analyze these files" }];
+                selectedFiles.forEach(file => {
+                    msgContent.push({
+                        type: "file_url", 
+                        file_url: { url: file.url, name: file.name } 
+                    });
+                });
             }
 
             // Input Reset
             messageInput.value = '';
             messageInput.style.height = 'auto';
-            removeImage();
+            selectedFiles = [];
+            renderAttachmentsPreview();
 
             messageHistory.push({ role: "user", content: msgContent });
             await triggerGenerationStream();
@@ -913,7 +951,7 @@
             const baseUrl = apiUrlInput.value.replace(/\/+$/, '');
             const apiKey = apiKeyInput.value.trim();
             const model = modelSelect.value;
-            const useStream = streamToggle.checked; // Listen to Sidebar Configuration
+            const useStream = streamToggle.checked;
 
             if (!apiKey) return showToast("API Key is required");
             if (!model) return showToast("Select a model first");
@@ -921,33 +959,25 @@
             sendBtn.disabled = true;
             isGenerating = true;
             
-            // Ensure UI is cleanly rendered up to the user message
             renderChat();
 
-            // Create temporary streaming bubble (uses length - 1 for logic)
             const streamNode = createBubbleNode('assistant', false, messageHistory.length);
+            streamNode.contentNode.innerHTML = `<div class="typing-indicator text-gray-400 flex gap-1 pt-2 pb-1">
+                <div class="w-2 h-2 rounded-full bg-gray-500"></div>
+                <div class="w-2 h-2 rounded-full bg-gray-500" style="animation-delay: 0.2s"></div>
+                <div class="w-2 h-2 rounded-full bg-gray-500" style="animation-delay: 0.4s"></div>
+            </div>`;
             streamNode.wrapper.classList.add('streaming-active');
-            streamNode.actionBar.style.display = 'none'; // Hide actions while streaming
-            
-            // Inject beautiful typing indicator initially
-            streamNode.contentNode.innerHTML = `
-                <div class="typing-indicator">
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                </div>
-            `;
-            
+            streamNode.actionBar.style.display = 'none'; 
             chatBox.appendChild(streamNode.wrapper);
             
             setTimeout(() => { chatBox.scrollTop = chatBox.scrollHeight; }, 50);
             
             let fullAssistantText = "";
             let assistantImages = [];
-            let hasStartedStreaming = false; // Flag to check if text has started
+            let hasStartedStreaming = false;
 
             try {
-                // Drop local 'images' keys from mapped payload to match API spec
                 const apiMessages = messageHistory.map(m => ({ role: m.role, content: m.content }));
 
                 const response = await fetch(`${baseUrl}/v1/chat/completions`, {
@@ -975,6 +1005,28 @@
                         autoScroll = chatBox.scrollHeight - chatBox.scrollTop <= chatBox.clientHeight + 50;
                     });
 
+                    // Queue for smooth typing animation
+                    let textQueue = [];
+                    let isTyping = false;
+
+                    function processQueue() {
+                        if (textQueue.length === 0) {
+                            isTyping = false;
+                            return;
+                        }
+                        
+                        isTyping = true;
+                        const char = textQueue.shift();
+                        fullAssistantText += char;
+                        
+                        streamNode.contentNode.innerHTML = marked.parse(fullAssistantText);
+                        applyMonacoEditors(streamNode.contentNode);
+                        
+                        if (autoScroll) chatBox.scrollTop = chatBox.scrollHeight;
+                        
+                        requestAnimationFrame(processQueue);
+                    }
+
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) break;
@@ -994,15 +1046,18 @@
                                     
                                     if (delta.content) {
                                         if (!hasStartedStreaming) {
-                                            streamNode.contentNode.innerHTML = ''; // Clear typing dots
                                             hasStartedStreaming = true;
+                                            streamNode.contentNode.innerHTML = "";
                                         }
-                                        fullAssistantText += delta.content;
-                                        streamNode.contentNode.innerHTML = marked.parse(fullAssistantText);
-                                        if(autoScroll) chatBox.scrollTop = chatBox.scrollHeight;
+                                        
+                                        for (let char of delta.content) {
+                                            textQueue.push(char);
+                                        }
+                                        if (!isTyping) {
+                                            processQueue();
+                                        }
                                     }
                                     
-                                    // Live Extraction of streaming images
                                     if (delta.images && delta.images.length > 0) {
                                         delta.images.forEach(img => {
                                             const imgUrl = typeof img === 'string' ? img : img.url;
@@ -1011,35 +1066,30 @@
                                             }
                                         });
                                     }
-                                } catch (e) { } // Ignore split chunks
+                                } catch (e) { } 
                             }
                         }
                     }
                 } else {
-                    // Non-Streaming Fallback
                     const data = await response.json();
                     const msg = data.choices[0].message;
                     fullAssistantText = msg.content || "";
                     assistantImages = msg.images || [];
                 }
 
-                // Push final content to history state
                 messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages });
                 saveChatState();
 
             } catch (error) {
                 showToast(error.message);
-                // If it fails, pop the last user message to allow retry
                 if (messageHistory.length > 0 && messageHistory[messageHistory.length - 1].role === 'user') {
                     messageHistory.pop();
                 }
                 saveChatState();
             } finally {
                 isGenerating = false;
-                sendBtn.disabled = messageInput.value.trim() === '' && !selectedImageBase64;
+                sendBtn.disabled = messageInput.value.trim() === '' && selectedFiles.length === 0;
                 messageInput.focus();
-                
-                // Final full re-render ensures actions, Monaco, and Image Carousels load perfectly
                 renderChat();
             }
         }

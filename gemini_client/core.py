@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 #########################################
 # Code Modified to use curl_cffi & robust text extraction with Delta Streaming
+# Upgraded with Dynamic File Upload Support (Multiple Files + Auto Type Detection)
 #########################################
 import asyncio
 import json
@@ -8,6 +9,7 @@ import os
 import random
 import re
 import string
+import mimetypes
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Tuple, Union, Optional, AsyncGenerator
@@ -29,6 +31,82 @@ console = Console()
 
 from gemini_client.utils import upload_file, load_cookies
 from gemini_client.images import Image 
+
+def detect_attachment_info(file_input: Union[bytes, str, Path], default_filename: str = "upload.txt") -> Tuple[str, int, str]:
+    """
+    Dynamically detects the MIME type, the proper Gemini Type ID (Flag), and the filename.
+    Based on reverse-engineered Gemini frontend payloads.
+    """
+    mime_type = "application/octet-stream"
+    filename = default_filename
+    
+    # Analyze raw bytes (Magic Number Guessing)
+    if isinstance(file_input, bytes):
+        if file_input.startswith(b'\x89PNG\r\n\x1a\n'):
+            mime_type, filename = "image/png", "upload.png"
+        elif file_input.startswith(b'\xff\xd8\xff'):
+            mime_type, filename = "image/jpeg", "upload.jpg"
+        elif file_input.startswith(b'GIF87a') or file_input.startswith(b'GIF89a'):
+            mime_type, filename = "image/gif", "upload.gif"
+        elif file_input.startswith(b'RIFF'):
+            mime_type, filename = "image/webp", "upload.webp"
+        elif file_input.startswith(b'%PDF-'):
+            mime_type, filename = "application/pdf", "document.pdf"
+        elif file_input.startswith(b'PK\x03\x04'):
+            mime_type, filename = "application/zip", "archive.zip"
+        else:
+            # Fallback for generic text files (like .py, .txt)
+            try:
+                file_input.decode('utf-8')
+                mime_type, filename = "text/plain", "document.txt"
+            except UnicodeDecodeError:
+                mime_type, filename = "application/octet-stream", "file.bin"
+    
+    # Analyze file paths
+    else:
+        filepath = Path(file_input)
+        filename = filepath.name
+        guessed_mime, _ = mimetypes.guess_type(str(filepath))
+        
+        if guessed_mime:
+            mime_type = guessed_mime
+        else:
+            # Fallbacks for specific extensions not always caught by standard mimetypes
+            ext = filepath.suffix.lower()
+            custom_mimes = {
+                '.ts': 'application/typescript',
+                '.tsx': 'text/tsx',
+                '.jsx': 'text/jsx',
+                '.kt': 'text/x-kotlin',
+                '.md': 'text/markdown',
+                '.m3u': 'application/octet-stream',
+                '.java': 'text/x-java-source',
+                '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            }
+            mime_type = custom_mimes.get(ext, "application/octet-stream")
+            
+    # Assign correct Gemini Attachment ID (Flag) dynamically based on reverse-engineered IDs
+    if mime_type.startswith("image/"):
+        gemini_type_id = 1
+    elif mime_type.startswith("video/"):
+        gemini_type_id = 2
+    elif mime_type == "text/plain":
+        gemini_type_id = 3
+    elif mime_type in ["application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv"]:
+        gemini_type_id = 7
+    elif mime_type in ["application/zip", "application/x-tar", "application/gzip", "application/x-bzip2"]:
+        gemini_type_id = 9
+    elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        gemini_type_id = 10
+    elif mime_type == "application/pdf":
+        gemini_type_id = 11
+    elif mime_type.startswith("text/") or mime_type in ["application/json", "application/typescript", "application/xml"]:
+        gemini_type_id = 16
+    else:
+        # Default for unmapped/binary files
+        gemini_type_id = 0 
+        
+    return mime_type, gemini_type_id, filename
 
 class Chatbot:
     """
@@ -75,12 +153,12 @@ class Chatbot:
             self.async_chatbot.load_conversation(file_path, conversation_name)
         )
 
-    def ask(self, message: str, image: Optional[Union[bytes, str, Path]] = None) -> dict: 
-        return self.loop.run_until_complete(self.async_chatbot.ask(message, image=image))
+    def ask(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None) -> dict: 
+        return self.loop.run_until_complete(self.async_chatbot.ask(message, files=files, attachment=attachment, image=image))
 
-    def ask_stream(self, message: str, image: Optional[Union[bytes, str, Path]] = None):
+    def ask_stream(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None):
         """Synchronous wrapper to consume the async generator for streaming chunks."""
-        gen = self.async_chatbot.ask_stream(message, image=image)
+        gen = self.async_chatbot.ask_stream(message, files=files, attachment=attachment, image=image)
         while True:
             try:
                 yield self.loop.run_until_complete(gen.__anext__())
@@ -305,7 +383,7 @@ class AsyncChatbot:
             console.log(f"[yellow]Cookie rotation failed: {e}[/yellow]")
             raise
 
-    async def ask_stream(self, message: str, image: Optional[Union[bytes, str, Path]] = None) -> AsyncGenerator[dict, None]:
+    async def ask_stream(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None) -> AsyncGenerator[dict, None]:
         if self.SNlM0e is None:
             raise RuntimeError("AsyncChatbot not properly initialized. Call AsyncChatbot.create()")
 
@@ -315,13 +393,35 @@ class AsyncChatbot:
             "rt": "c",
         }
 
-        image_upload_id = None
+        # Combine all files into a unified array (backward compatible with older kwargs)
+        all_files = []
+        if files:
+            if isinstance(files, list):
+                all_files.extend(files)
+            else:
+                all_files.append(files)
+        if attachment:
+            all_files.append(attachment)
         if image:
-            try:
-                image_upload_id = await upload_file(image, proxy=self.proxies_dict, impersonate=self.impersonate)
-            except Exception as e:
-                yield {"content": f"Error uploading image: {e}", "chunk": f"Error uploading image: {e}", "error": True}
-                return
+            all_files.append(image)
+
+        uploaded_files_array = []
+        
+        # Upload loop dynamically constructs the file metadata array
+        if all_files:
+            for file_input in all_files:
+                try:
+                    upload_id = await upload_file(file_input, proxy=self.proxies_dict, impersonate=self.impersonate)
+                    mime_type, gemini_type_id, filename = detect_attachment_info(file_input)
+                    
+                    # Appending to array based on the exact reverse-engineered structure
+                    uploaded_files_array.append([
+                        [upload_id, gemini_type_id, None, mime_type],
+                        filename
+                    ])
+                except Exception as e:
+                    yield {"content": f"Error uploading file '{file_input}': {e}", "chunk": f"Error uploading file: {e}", "error": True}
+                    return
 
         # Prepare Conversation State Array (Relaxed check)
         if self.conversation_id:
@@ -334,24 +434,9 @@ class AsyncChatbot:
         else:
             conversation_state = ["", "", "", None, None, None, None, None, None, ""]
 
-        if image_upload_id:
-            if isinstance(image, bytes):
-                filename = "upload.jpg"
-            else:
-                filename = Path(image).name
-                
-            if filename.lower().endswith(".png"):
-                mime_type = "image/png"
-            elif filename.lower().endswith(".webp"):
-                mime_type = "image/webp"
-            else:
-                mime_type = "image/jpeg"
-
-            uploaded_image = [[[
-                image_upload_id, 1, None, mime_type
-            ], filename, None, None, None, None, None, None, [0]]]
-
-            message_struct = [message, 0, None, uploaded_image, None, None, 0]
+        # Safely inject the new attachments array
+        if uploaded_files_array:
+            message_struct = [message, 0, None, uploaded_files_array, None, None, 0]
         else:
             message_struct = [message, 0, None, None, None, None, 0]
 
@@ -477,7 +562,7 @@ class AsyncChatbot:
         except Exception as e:
             yield {"content": f"Streaming error: {e}", "chunk": f"Streaming error: {e}", "error": True}
 
-    async def ask(self, message: str, image: Optional[Union[bytes, str, Path]] = None) -> dict:
+    async def ask(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None) -> dict:
         if self.SNlM0e is None:
             raise RuntimeError("AsyncChatbot not properly initialized. Call AsyncChatbot.create()")
 
@@ -487,14 +572,33 @@ class AsyncChatbot:
             "rt": "c",
         }
 
-        image_upload_id = None
+        all_files = []
+        if files:
+            if isinstance(files, list):
+                all_files.extend(files)
+            else:
+                all_files.append(files)
+        if attachment:
+            all_files.append(attachment)
         if image:
-            try:
-                image_upload_id = await upload_file(image, proxy=self.proxies_dict, impersonate=self.impersonate)
-                console.log(f"Image uploaded successfully. ID: {image_upload_id}")
-            except Exception as e:
-                console.log(f"[red]Error uploading image: {e}[/red]")
-                return {"content": f"Error uploading image: {e}", "error": True}
+            all_files.append(image)
+
+        uploaded_files_array = []
+        
+        if all_files:
+            for file_input in all_files:
+                try:
+                    upload_id = await upload_file(file_input, proxy=self.proxies_dict, impersonate=self.impersonate)
+                    mime_type, gemini_type_id, filename = detect_attachment_info(file_input)
+                    
+                    uploaded_files_array.append([
+                        [upload_id, gemini_type_id, None, mime_type],
+                        filename
+                    ])
+                    console.log(f"Attachment '{filename}' uploaded successfully. ID: {upload_id}")
+                except Exception as e:
+                    console.log(f"[red]Error uploading attachment '{file_input}': {e}[/red]")
+                    return {"content": f"Error uploading attachment: {e}", "error": True}
 
         # Prepare Conversation State Array (Relaxed check)
         if self.conversation_id:
@@ -507,24 +611,8 @@ class AsyncChatbot:
         else:
             conversation_state = ["", "", "", None, None, None, None, None, None, ""]
 
-        if image_upload_id:
-            if isinstance(image, bytes):
-                filename = "upload.jpg"
-            else:
-                filename = Path(image).name
-                
-            if filename.lower().endswith(".png"):
-                mime_type = "image/png"
-            elif filename.lower().endswith(".webp"):
-                mime_type = "image/webp"
-            else:
-                mime_type = "image/jpeg"
-
-            uploaded_image = [[[
-                image_upload_id, 1, None, mime_type
-            ], filename, None, None, None, None, None, None, [0]]]
-
-            message_struct = [message, 0, None, uploaded_image, None, None, 0]
+        if uploaded_files_array:
+            message_struct = [message, 0, None, uploaded_files_array, None, None, 0]
         else:
             message_struct = [message, 0, None, None, None, None, 0]
 
