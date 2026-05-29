@@ -379,7 +379,7 @@ class AsyncChatbot:
             console.log(f"[yellow]Cookie rotation failed: {e}[/yellow]")
             raise
 
-    async def ask_stream(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None) -> AsyncGenerator[dict, None]:
+    async def ask_stream(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None, regenerate: bool = False) -> AsyncGenerator[dict, None]:
         if self.SNlM0e is None:
             raise RuntimeError("AsyncChatbot not properly initialized. Call AsyncChatbot.create()")
 
@@ -432,9 +432,9 @@ class AsyncChatbot:
 
         # Safely inject the new attachments array
         if uploaded_files_array:
-            message_struct = [message, 0, None, uploaded_files_array, None, None, 0]
+            message_struct = [message, 0, None, uploaded_files_array, None, None, 2 if regenerate else 0]
         else:
-            message_struct = [message, 0, None, None, None, None, 0]
+            message_struct = [message, 0, None, None, None, None, 2 if regenerate else 0]
 
         request_payload = [
             message_struct,
@@ -638,7 +638,7 @@ class AsyncChatbot:
             conversation_state = ["", "", "", None, None, None, None, None, None, ""]
 
         if uploaded_files_array:
-            message_struct = [message, 0, None, uploaded_files_array, None, None, 0]
+            message_struct = [message, 0, None, uploaded_files_array, None, None, 2 if regenerate else 0]
         else:
             message_struct = [message, 0, None, None, None, None, 2 if regenerate else 0]
 
