@@ -112,6 +112,67 @@
         /* Hide Scrollbar for Carousels */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Native Gemini Inline Citation Hover Logic */
+        .gemini-source-wrapper {
+            position: relative;
+            display: inline;
+        }
+        .gemini-source-text {
+            transition: background-color 0.2s, color 0.2s;
+            border-radius: 4px;
+        }
+        /* Only highlight the text when hovering the grey pill link */
+        .gemini-source-wrapper:has(.gemini-source-pill:hover) .gemini-source-text {
+            background-color: #1a2b4c;
+            color: #a8c7fa;
+        }
+        .gemini-source-pill {
+            display: inline-block;
+            margin-left: 0.25rem;
+            position: relative;
+            vertical-align: middle;
+            transform: translateY(-2px);
+            cursor: pointer;
+        }
+        .gemini-source-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: 0.5rem;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease-in-out;
+            width: 16rem;
+            background-color: #1e1e1e;
+            border: 1px solid #374151; /* gray-700 */
+            border-radius: 0.75rem;
+            padding: 0.75rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            z-index: 9999;
+            white-space: normal;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            cursor: default;
+        }
+        /* Triangle Arrow Pointing Down */
+        .gemini-source-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 6px;
+            border-style: solid;
+            border-color: #1e1e1e transparent transparent transparent;
+        }
+        /* Only show tooltip when hovering the grey pill link */
+        .gemini-source-pill:hover .gemini-source-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
     </style>
 </head>
 <body class="flex h-screen w-full bg-gray-850">
@@ -143,6 +204,15 @@
             <div class="space-y-1.5">
                 <label class="text-xs text-gray-400 pl-1">API Key</label>
                 <input type="password" id="apiKey" placeholder="sk-..." class="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-gray-500 text-sm text-gray-200 placeholder-gray-500 transition-colors">
+            </div>
+
+            <!-- Enhanced: System Prompt Configuration -->
+            <div class="space-y-1.5 pt-2">
+                <label class="text-xs text-gray-400 pl-1 flex justify-between items-center">
+                    System Prompt
+                    <span class="text-[10px] text-gray-500 font-normal border border-gray-700 px-1.5 rounded">Injected</span>
+                </label>
+                <textarea id="systemPrompt" rows="3" placeholder="You are a helpful AI assistant..." class="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-gray-500 text-sm text-gray-200 placeholder-gray-500 transition-colors resize-y min-h-[80px]"></textarea>
             </div>
 
             <!-- Stream Toggle Section -->
@@ -289,26 +359,12 @@
             let domain = '';
             try { domain = new URL(href).hostname.replace('www.', ''); } catch(e){}
             
-            // Check if text is just a numeric citation marker [1] generated internally
             const isCitationNum = /^\[?\d+\]?$/.test(text) || text.trim() === 'source';
             
             if (isCitationNum) {
-                // Renders just the clean grey pill if it's an isolated citation
-                return `<span class="relative group inline-flex items-center cursor-pointer mx-0.5 align-middle">
-                    <a href="${href}" target="_blank" class="flex items-center gap-1 bg-[#1a1a1a] hover:bg-[#252525] border border-gray-700/60 px-2 py-[2px] rounded-full transition-colors no-underline">
-                        <span class="text-[10px] font-medium text-gray-400 group-hover:text-gray-200">${domain}</span>
-                    </a>
-                    <!-- Tooltip Mini Window -->
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 w-64 bg-[#1e1e1e] border border-gray-700 rounded-xl p-3 shadow-2xl z-[100] pointer-events-none whitespace-normal text-left flex flex-col cursor-default">
-                        <div class="flex items-center gap-2 mb-1.5">
-                            <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0">
-                            <span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span>
-                        </div>
-                        <div class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${title || domain}</div>
-                    </div>
-                </span>`;
+                // Generates an isolated source pill logic without wrapping any preceding text
+                return `<span class="gemini-source-pill"><a href="${href}" target="_blank" class="inline-flex items-center gap-1 bg-[#1a1a1a] hover:bg-[#252525] border border-gray-700/60 px-2 py-[2px] rounded-full transition-colors no-underline"><span class="text-[10px] font-medium text-gray-400 hover:text-gray-200">${domain}</span></a><span class="gemini-source-tooltip"><span class="flex items-center gap-2 mb-1.5"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0"><span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span></span><span class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${title || domain}</span></span></span>`;
             } else {
-                // Regular markdown links fallback
                 return `<a href="${href}" target="_blank" class="text-blue-400 hover:text-blue-300 transition-colors">${text}</a>`;
             }
         };
@@ -329,54 +385,41 @@
                 try { domain = new URL(src.url).hostname.replace('www.', ''); } catch(e){}
                 let safeTitle = (src.title || '').replace(/"/g, '&quot;');
                 
-                const tooltipHTML = `
-                    <a href="${src.url}" target="_blank" class="ml-1 inline-flex items-center bg-[#282a2c] hover:bg-[#343638] border border-gray-700/50 px-2 py-[2px] rounded-full transition-colors no-underline h-fit translate-y-[-1px] align-middle">
-                        <span class="text-[10px] font-medium text-[#c4c7c5] group-hover:text-white truncate max-w-[100px]">${domain}</span>
-                    </a>
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 w-64 bg-[#1e1e1e] border border-gray-700 rounded-xl p-3 shadow-2xl z-[100] pointer-events-none whitespace-normal text-left flex flex-col cursor-default">
-                        <div class="flex items-center gap-2 mb-1.5">
-                            <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0">
-                            <span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span>
-                        </div>
-                        <div class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${safeTitle}</div>
-                    </div>
-                `;
+                // Pure CSS isolation: The grey pill contains the hover logic to trigger the tooltip and highlight the text sibling
+                const pillHTML = `<span class="gemini-source-pill"><a href="${src.url}" target="_blank" class="inline-flex items-center bg-[#282a2c] hover:bg-[#343638] border border-gray-700/50 px-2 py-[2px] rounded-full transition-colors no-underline"><span class="text-[10px] font-medium text-[#c4c7c5] hover:text-white truncate max-w-[100px]">${domain}</span></a><span class="gemini-source-tooltip"><span class="flex items-center gap-2 mb-1.5"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0"><span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span></span><span class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${safeTitle}</span></span></span>`;
 
                 if (src.snippet && src.snippet.length > 3) {
                     const cleanSnippet = src.snippet.replace(/[*_~`]/g, '').trim();
                     
-                    // Try exact match with original markdown string provided by backend
+                    // Wraps the text and the pill inside the CSS tracker wrapper
                     if (processed.includes(src.snippet)) {
-                        processed = processed.replace(src.snippet, `<span class="relative group inline-block cursor-pointer whitespace-normal break-words"><span class="text-[#a8c7fa] bg-[#1a2b4c] group-hover:bg-[#203660] px-1 py-0.5 rounded transition-colors font-medium">${src.snippet}</span>${tooltipHTML}</span>`);
+                        processed = processed.replace(src.snippet, `<span class="gemini-source-wrapper"><span class="gemini-source-text">${src.snippet}</span>${pillHTML}</span>`);
                         matched = true;
                     } 
-                    // Try clean exact match
                     else if (processed.includes(cleanSnippet)) {
-                        processed = processed.replace(cleanSnippet, `<span class="relative group inline-block cursor-pointer whitespace-normal break-words"><span class="text-[#a8c7fa] bg-[#1a2b4c] group-hover:bg-[#203660] px-1 py-0.5 rounded transition-colors font-medium">${cleanSnippet}</span>${tooltipHTML}</span>`);
+                        processed = processed.replace(cleanSnippet, `<span class="gemini-source-wrapper"><span class="gemini-source-text">${cleanSnippet}</span>${pillHTML}</span>`);
                         matched = true;
                     }
                 }
                 
                 if (!matched) {
-                    unmatchedSources.push({src, tooltipHTML});
+                    unmatchedSources.push({src, tooltipHTML: pillHTML});
                 }
             });
             
-            // For sources with no snippet mapping, distribute them elegantly at the end of sentences
+            // Elegantly distribute unmapped fallback sources
             if (unmatchedSources.length > 0) {
-                // Split by period, exclamation mark, or question mark, preserving the delimiter
                 let sentences = processed.split(/([.!?](?:\s+|$))/);
                 if (sentences.length > 1) {
                     unmatchedSources.forEach((item, idx) => {
                         let targetIdx = (idx * 2);
-                        // Make sure we attach it to the text component, not the delimiter
                         if (targetIdx >= sentences.length) targetIdx = sentences.length > 2 ? sentences.length - 2 : 0; 
-                        sentences[targetIdx] = `<span class="relative group inline-block cursor-pointer whitespace-normal break-words">${sentences[targetIdx]}${item.tooltipHTML}</span>`;
+                        sentences[targetIdx] = `<span class="gemini-source-wrapper"><span class="gemini-source-text">${sentences[targetIdx]}</span>${item.tooltipHTML}</span>`;
                     });
                     processed = sentences.join('');
                 } else {
                     unmatchedSources.forEach(item => {
-                        processed += ` <span class="relative group inline-block cursor-pointer whitespace-normal break-words">${item.tooltipHTML}</span>`;
+                        processed += ` <span class="gemini-source-wrapper">${item.tooltipHTML}</span>`;
                     });
                 }
             }
@@ -400,8 +443,7 @@
             links.forEach(link => {
                 if (link.dataset.ytTransformed) return;
                 
-                // If it's already caught inside our custom inline citation tooltip, target the outer span
-                const outerGroup = link.closest('.group');
+                const outerGroup = link.closest('.gemini-source-wrapper');
                 const targetToReplace = outerGroup ? outerGroup : link;
                 
                 const url = link.href;
@@ -514,7 +556,7 @@
 
                 const copyBtn = document.createElement('button');
                 copyBtn.className = 'flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-100 transition-colors py-1';
-                copyBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg> Copy code`;
+                copyBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg> Copy code`;
                 
                 actionsDiv.appendChild(copyBtn);
                 headerBar.appendChild(actionsDiv);
@@ -556,6 +598,8 @@
         let messageHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
         let selectedFiles = []; 
         let isGenerating = false;
+        let isRegeneratingFlag = false; // Flag for Smart Regeneration Prompt Injection
+        let isEditingFlag = false; // Flag for Smart Edit Prompt Injection
 
         function openImageModal(url, title) {
             const modal = document.getElementById('fullscreenModal');
@@ -645,6 +689,7 @@
 
         const apiUrlInput = document.getElementById('apiUrl');
         const apiKeyInput = document.getElementById('apiKey');
+        const systemPromptInput = document.getElementById('systemPrompt');
         const modelSelect = document.getElementById('modelSelect');
         const streamToggle = document.getElementById('streamToggle');
         const chatBox = document.getElementById('chatBox');
@@ -657,6 +702,7 @@
         window.onload = () => {
             apiUrlInput.value = localStorage.getItem('apiUrl') || 'http://localhost:8000';
             apiKeyInput.value = localStorage.getItem('apiKey') || '';
+            systemPromptInput.value = localStorage.getItem('systemPrompt') || '';
             streamToggle.checked = localStorage.getItem('streamEnabled') !== 'false';
             
             const cachedModels = JSON.parse(localStorage.getItem('cachedModels')) || [];
@@ -668,6 +714,7 @@
 
         apiUrlInput.addEventListener('input', () => localStorage.setItem('apiUrl', apiUrlInput.value));
         apiKeyInput.addEventListener('input', () => localStorage.setItem('apiKey', apiKeyInput.value));
+        systemPromptInput.addEventListener('input', () => localStorage.setItem('systemPrompt', systemPromptInput.value));
         modelSelect.addEventListener('change', () => localStorage.setItem('selectedModel', modelSelect.value));
         streamToggle.addEventListener('change', () => localStorage.setItem('streamEnabled', streamToggle.checked));
 
@@ -714,20 +761,12 @@
                             canvas.width = width; canvas.height = height;
                             ctx.drawImage(img, 0, 0, width, height);
 
-                            selectedFiles.push({
-                                name: file.name,
-                                url: canvas.toDataURL('image/jpeg', 0.85),
-                                isImage: true
-                            });
+                            selectedFiles.push({ name: file.name, url: canvas.toDataURL('image/jpeg', 0.85), isImage: true });
                             renderAttachmentsPreview();
                         };
                         img.src = dataUrl;
                     } else {
-                        selectedFiles.push({
-                            name: file.name,
-                            url: dataUrl,
-                            isImage: false
-                        });
+                        selectedFiles.push({ name: file.name, url: dataUrl, isImage: false });
                         renderAttachmentsPreview();
                     }
                 };
@@ -876,6 +915,7 @@
             if (messageHistory[messageHistory.length - 1].role === 'assistant') {
                 messageHistory.pop();
             }
+            isRegeneratingFlag = true;
             await triggerGenerationStream();
         }
 
@@ -928,6 +968,7 @@
             messageHistory = messageHistory.slice(0, index + 1);
             saveChatState();
             
+            isEditingFlag = true;
             await triggerGenerationStream();
         }
 
@@ -953,7 +994,7 @@
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                     </button>
                     <button onclick="copyMessageIndex(${index}, this)" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors" title="Copy">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                     </button>
                 `;
 
@@ -1146,6 +1187,7 @@
             const apiKey = apiKeyInput.value.trim();
             const model = modelSelect.value;
             const useStream = streamToggle.checked;
+            const sysPrompt = document.getElementById('systemPrompt').value.trim();
 
             if (!apiKey) return showToast("API Key is required");
             if (!model) return showToast("Select a model first");
@@ -1174,7 +1216,53 @@
             let hasStartedStreaming = false;
 
             try {
-                const apiMessages = messageHistory.map(m => ({ role: m.role, content: m.content }));
+                // --- SMART INJECTION LOGIC ---
+                const apiMessages = messageHistory.map((m, index) => {
+                    // Only apply wrapper and system prompt to the LAST user message
+                    if (m.role === 'user' && index === messageHistory.length - 1) {
+                        let textContent = "";
+                        const originalContent = JSON.parse(JSON.stringify(m.content)); // Deep clone
+                        
+                        if (Array.isArray(originalContent)) {
+                            const txtObj = originalContent.find(c => c.type === 'text');
+                            if (txtObj) textContent = txtObj.text;
+                        } else {
+                            textContent = originalContent;
+                        }
+
+                        let injectedPrompt = "";
+                        
+                        if (sysPrompt) {
+                            injectedPrompt += `[SYSTEM INSTRUCTIONS]\n${sysPrompt}\n[/SYSTEM INSTRUCTIONS]\n\n`;
+                        }
+                        
+                        if (isRegeneratingFlag) {
+                            injectedPrompt += `[SYSTEM NOTE]\nThe user requested to REGENERATE the previous response. Please provide a new, improved, or alternative answer.\n[/SYSTEM NOTE]\n\n`;
+                        } else if (isEditingFlag) {
+                            injectedPrompt += `[SYSTEM NOTE]\nThe user has EDITED their previous message to branch off the conversation. Treat this as a new direction and provide a fresh, updated response based on this new request.\n[/SYSTEM NOTE]\n\n`;
+                        }
+
+                        if (injectedPrompt) {
+                            injectedPrompt += `[USER REQUEST]\n${textContent}\n[/USER REQUEST]`;
+                        } else {
+                            injectedPrompt = textContent; // Fallback if no modifiers are present
+                        }
+
+                        // Reassemble payload safely
+                        if (Array.isArray(originalContent)) {
+                            const txtObj = originalContent.find(c => c.type === 'text');
+                            if (txtObj) {
+                                txtObj.text = injectedPrompt;
+                            } else {
+                                originalContent.push({ type: 'text', text: injectedPrompt });
+                            }
+                            return { role: 'user', content: originalContent };
+                        } else {
+                            return { role: 'user', content: injectedPrompt };
+                        }
+                    }
+                    return { role: m.role, content: m.content };
+                });
 
                 const response = await fetch(`${baseUrl}/v1/chat/completions`, {
                     method: 'POST',
@@ -1281,6 +1369,8 @@
                 saveChatState();
             } finally {
                 isGenerating = false;
+                isRegeneratingFlag = false; // Reset flag
+                isEditingFlag = false; // Reset flag
                 sendBtn.disabled = messageInput.value.trim() === '' && selectedFiles.length === 0;
                 messageInput.focus();
                 
