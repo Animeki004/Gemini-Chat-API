@@ -27,12 +27,11 @@ app.add_middleware(
 
 class Message(BaseModel):
     role: str
-    # IMPORTANT: List[Any] MUST come before str so Pydantic doesn't cast arrays into strings!
     content: Optional[Union[List[Any], str]] = None
     name: Optional[str] = None
     
     class Config:
-        extra = "ignore"  # Prevents 422 errors from unexpected fields
+        extra = "ignore"
 
 class ChatCompletionRequest(BaseModel):
     model: str 
@@ -55,7 +54,7 @@ class ChatCompletionRequest(BaseModel):
     regenerate: Optional[bool] = False
 
     class Config:
-        extra = "ignore"  # Strongly prevents 422 errors
+        extra = "ignore" 
 
 class CookieUpdateRequest(BaseModel):
     psid: str
@@ -65,12 +64,8 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
     details = db.get_api_key_details(credentials.credentials)
     if not details or not details[0]: 
         raise HTTPException(status_code=401, detail="Invalid or deactivated API Key")
-        # ENFORCE RATE LIMITS
     if not db.check_rate_limit(credentials.credentials):
-        raise HTTPException(
-            status_code=429, 
-            detail="Rate limit exceeded. Please wait before making more requests."
-        )
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Please wait before making more requests.")
     return {"key": credentials.credentials, "allowed_models": details[1], "role": details[2]}
 
 def verify_admin_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -81,25 +76,20 @@ def verify_admin_key(credentials: HTTPAuthorizationCredentials = Depends(securit
         raise HTTPException(status_code=403, detail="API Key lacks 'admin' permissions required for this endpoint")
     return {"key": credentials.credentials}
 
-# ==========================================
-# SECURE EXTENSION AUTO-HEALER ENDPOINTS
-# ==========================================
 @app.get("/v1/admin/cookie_status")
 async def check_cookie_status(admin_auth = Depends(verify_admin_key)):
-    """Extension securely polls this to see if intervention is needed."""
     return {"needs_update": db.get_needs_update()}
 
 @app.post("/v1/admin/cookies")
 async def update_cookies_api(request: CookieUpdateRequest, admin_auth = Depends(verify_admin_key)):
-    """Extension pushes JSON Secure data packet here to fix cookies."""
     db.update_cookies(request.psid, request.psidts)
-    db.set_needs_update(False) # Turn off the distress signal
+    db.set_needs_update(False) 
     
-    from admin_bot import bot, ADMIN_ID
-    if bot and ADMIN_ID:
-        try:
+    try:
+        from admin_bot import bot, ADMIN_ID
+        if bot and ADMIN_ID:
             bot.send_message(ADMIN_ID, "✅ <b>Auto-Heal Complete:</b> The Chrome Extension securely intercepted the error and updated the database with fresh cookies!", parse_mode="HTML")
-        except: pass
+    except: pass
         
     return {"status": "success", "message": "Secure payload accepted. Cookies updated."}
 
@@ -139,14 +129,12 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
     if allowed_list and request.model not in allowed_list:
         raise HTTPException(status_code=403, detail=f"Your API key does not have access to model: {request.model}.")
         
-    # Get the last message to process
     last_msg_content = request.messages[-1].content if request.messages else ""
     prompt_parts = []
     files_to_upload = []
     temp_files = []
     prompt = ""
 
-    # Check for Vision/File Payload (List of Dictionaries/Objects)
     if isinstance(last_msg_content, list):
         for item in last_msg_content:
             if isinstance(item, dict):
@@ -164,7 +152,6 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                             header, encoded = url.split(",", 1)
                             file_bytes = base64.b64decode(encoded)
                             
-                            # Save to temp file to retain original extension for MIME detection
                             tmp_dir = os.path.join("data", "temp_uploads")
                             os.makedirs(tmp_dir, exist_ok=True)
                             tmp_path = os.path.join(tmp_dir, f"{uuid.uuid4().hex}_{filename}")
@@ -180,7 +167,6 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
         if not prompt and files_to_upload:
             prompt = "Analyze the provided files/images."
     else:
-        # Standard text message
         prompt = str(last_msg_content) if last_msg_content else ""
     
     api_key_token = auth_data["key"]
@@ -200,9 +186,16 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
         session_data = db.get_api_key_session(api_key_token)
         if session_data and session_data["cid"]:
             bot.conversation_id = session_data["cid"]
-            bot.response_id = session_data["rid"] or ""
-            bot.choice_id = session_data["chid"] or ""
-            bot.conversation_token = session_data.get("ctok", "") or ""
+            
+            # Branch state loading based on regenerate flag
+            if request.regenerate:
+                bot.response_id = session_data.get("prev_rid") or ""
+                bot.choice_id = session_data.get("prev_chid") or ""
+                bot.conversation_token = session_data.get("prev_ctok", "") or ""
+            else:
+                bot.response_id = session_data["rid"] or ""
+                bot.choice_id = session_data["chid"] or ""
+                bot.conversation_token = session_data.get("ctok", "") or ""
 
         if request.stream:
             async def stream_generator():
@@ -212,11 +205,9 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                     
                     try:
                         async for result in bot.ask_stream(prompt, files=files_to_upload, regenerate=request.regenerate):
-                            # Catch potential API/cookie errors returned elegantly during stream
                             if result.get("error"):
-                                # RESET SESSION: Clear invalid conversation bindings on error
                                 db.update_api_key_session(api_key_token, None, None, None)
-                                cid = None # Prevent the final block from re-saving a bad session
+                                cid = None 
                                 
                                 error_msg = result.get("content", "Unknown error")
                                 error_chunk = {
@@ -234,7 +225,6 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                             rid = result.get("response_id")
                             chid = result.get("choice_id")
                             
-                            # Extract and format images securely for JSON serialization
                             raw_imgs = result.get("images", [])
                             safe_imgs = []
                             for img in raw_imgs:
@@ -245,7 +235,6 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                             
                             safe_vids = result.get("videos", [])
                             
-                            # Emit the live text chunk, images, and videos
                             if chunk_text or safe_imgs or safe_vids:
                                 has_content = True
                                 delta_data = {}
@@ -266,12 +255,10 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                                 yield f"data: {json.dumps(chunk_json)}\n\n"
                                 
                     except Exception as stream_e:
-                        # Catch exceptions that occur INSIDE the async generator and bypass the outer try/except
                         db.update_api_key_session(api_key_token, None, None, None)
                         cid = None
                         error_str = str(stream_e)
                         
-                        # SMART AUTO-HEALER TRIGGER inside the generator
                         if any(kw in error_str.lower() for kw in ["cookie", "snlm0e", "auth", "permission", "status: 40", "status: 50"]):
                             db.set_needs_update(True)
                             if db.check_and_set_alert_flood(cooldown_seconds=300):
@@ -289,14 +276,11 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                         }
                         yield f"data: {json.dumps(error_chunk)}\n\n"
 
-                    # Update persistent conversation session ONLY if we successfully got content and no errors cleared cid
                     if cid and has_content:
-                        db.update_api_key_session(api_key_token, cid, rid, chid, result.get("conversation_token", ""))
+                        db.update_api_key_session(api_key_token, cid, rid, chid, result.get("conversation_token", ""), request.regenerate)
                     else:
-                        # Blank response or error -> Reset session immediately
                         db.update_api_key_session(api_key_token, None, None, None)
                         
-                    # Emit final finish_reason block
                     finish_chunk = {
                         "id": f"chatcmpl-{uuid.uuid4().hex}",
                         "object": "chat.completion.chunk",
@@ -307,9 +291,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                     yield f"data: {json.dumps(finish_chunk)}\n\n"
                     yield "data: [DONE]\n\n"
                 finally:
-                    # Crucial: Close network session once streaming ends
                     await bot.session.close()
-                    # Clean up temporary uploaded files
                     for p in temp_files:
                         if os.path.exists(p):
                             try:
@@ -320,10 +302,8 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
         else:
-            # STANDARD SYNCHRONOUS REQUEST (Non-Streaming)
             response = await bot.ask(prompt, files=files_to_upload, regenerate=request.regenerate)
             
-            # Clean up temporary uploaded files
             for p in temp_files:
                 if os.path.exists(p):
                     try:
@@ -331,13 +311,11 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                     except:
                         pass
 
-            # RESET SESSION: Clear invalid bindings if Gemini threw an error string
             if response.get("error"):
                 db.update_api_key_session(api_key_token, None, None, None)
                 await bot.session.close()
                 raise HTTPException(status_code=500, detail=str(response.get("content", "Unknown error occurred.")))
                 
-            # ROBUST TEXT EXTRACTION
             raw_content = response.get("content") or ""
             
             def extract_text(item: Any) -> str:
@@ -349,7 +327,6 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 
             final_content = extract_text(raw_content).strip()
 
-            # Extract images for non-streaming mode
             raw_imgs = response.get("images", [])
             safe_imgs = []
             for img in raw_imgs:
@@ -360,12 +337,10 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
 
             safe_vids = response.get("videos", [])
 
-            # RESET SESSION: If we got a completely blank response (usually signifies bad session state)
             if not final_content and not safe_imgs and not safe_vids:
                 db.update_api_key_session(api_key_token, None, None, None)
             else:
-                # Normal behavior: Save the active session
-                db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id, getattr(bot, "conversation_token", ""))
+                db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id, getattr(bot, "conversation_token", ""), request.regenerate)
 
             await bot.session.close()
 
@@ -381,17 +356,9 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
         raise
     except Exception as e:
         error_str = str(e)
-        
-        # RESET SESSION: Clear session for all major backend/network crashes 
-        # (Allows the next request to bypass corrupted thread history)
         db.update_api_key_session(api_key_token, None, None, None)
-        
-        # SMART AUTO-HEALER TRIGGER & FLOOD CONTROL
         if any(kw in error_str.lower() for kw in ["cookie", "snlm0e", "auth", "permission", "status: 40", "status: 50"]):
-            # Signal the Chrome Extension
             db.set_needs_update(True)
-            
-            # Flood Control: Only alert Telegram once every 5 minutes
             if db.check_and_set_alert_flood(cooldown_seconds=300):
                 try:
                     from admin_bot import send_admin_alert

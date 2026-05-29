@@ -1,8 +1,4 @@
 # -*- coding: utf-8 -*-
-#########################################
-# Code Modified to use curl_cffi & robust text extraction with Delta Streaming
-# Upgraded with Dynamic File Upload Support (Multiple Files + Auto Type Detection)
-#########################################
 import asyncio
 import json
 import os
@@ -16,10 +12,8 @@ from typing import Dict, List, Tuple, Union, Optional, AsyncGenerator
 
 from gemini_client.enums import Endpoint, Headers, Model
 from gemini_client.cookie_manager import CookieExtractor
-# Use curl_cffi for requests
 from curl_cffi import CurlError
 from curl_cffi.requests import AsyncSession
-# Import common request exceptions (curl_cffi often wraps these)
 from requests.exceptions import RequestException, Timeout, HTTPError
 
 from pydantic import BaseModel, field_validator
@@ -33,14 +27,9 @@ from gemini_client.utils import upload_file, load_cookies
 from gemini_client.images import Image 
 
 def detect_attachment_info(file_input: Union[bytes, str, Path], default_filename: str = "upload.txt") -> Tuple[str, int, str]:
-    """
-    Dynamically detects the MIME type, the proper Gemini Type ID (Flag), and the filename.
-    Based on reverse-engineered Gemini frontend payloads.
-    """
     mime_type = "application/octet-stream"
     filename = default_filename
     
-    # Analyze raw bytes (Magic Number Guessing)
     if isinstance(file_input, bytes):
         if file_input.startswith(b'\x89PNG\r\n\x1a\n'):
             mime_type, filename = "image/png", "upload.png"
@@ -55,14 +44,11 @@ def detect_attachment_info(file_input: Union[bytes, str, Path], default_filename
         elif file_input.startswith(b'PK\x03\x04'):
             mime_type, filename = "application/zip", "archive.zip"
         else:
-            # Fallback for generic text files (like .py, .txt)
             try:
                 file_input.decode('utf-8')
                 mime_type, filename = "text/plain", "document.txt"
             except UnicodeDecodeError:
                 mime_type, filename = "application/octet-stream", "file.bin"
-    
-    # Analyze file paths
     else:
         filepath = Path(file_input)
         filename = filepath.name
@@ -71,7 +57,6 @@ def detect_attachment_info(file_input: Union[bytes, str, Path], default_filename
         if guessed_mime:
             mime_type = guessed_mime
         else:
-            # Fallbacks for specific extensions not always caught by standard mimetypes
             ext = filepath.suffix.lower()
             custom_mimes = {
                 '.ts': 'application/typescript',
@@ -83,7 +68,6 @@ def detect_attachment_info(file_input: Union[bytes, str, Path], default_filename
             }
             mime_type = custom_mimes.get(ext, "application/octet-stream")
             
-    # Assign correct Gemini Attachment ID (Flag) dynamically based on reverse-engineered IDs
     if mime_type.startswith("image/"):
         gemini_type_id = 1
     elif mime_type.startswith("video/"):
@@ -99,15 +83,11 @@ def detect_attachment_info(file_input: Union[bytes, str, Path], default_filename
     elif mime_type.startswith("text/") or mime_type in ["application/json", "application/typescript", "application/xml"]:
         gemini_type_id = 16
     else:
-        # Default for unmapped/binary files
         gemini_type_id = 0 
         
     return mime_type, gemini_type_id, filename
 
 class Chatbot:
-    """
-    Synchronous wrapper for the AsyncChatbot class.
-    """
     def __init__(
         self,
         cookie_path: str,
@@ -153,7 +133,6 @@ class Chatbot:
         return self.loop.run_until_complete(self.async_chatbot.ask(message, files=files, attachment=attachment, image=image, regenerate=regenerate))
 
     def ask_stream(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None, regenerate: bool = False):
-        """Synchronous wrapper to consume the async generator for streaming chunks."""
         gen = self.async_chatbot.ask_stream(message, files=files, attachment=attachment, image=image, regenerate=regenerate)
         while True:
             try:
@@ -163,9 +142,6 @@ class Chatbot:
 
 
 class AsyncChatbot:
-    """
-    Asynchronous chatbot client for interacting with Google Gemini using curl_cffi.
-    """
     __slots__ = [
         "headers",
         "_reqid",
@@ -174,6 +150,7 @@ class AsyncChatbot:
         "conversation_id",
         "response_id",
         "choice_id",
+        "conversation_token",
         "proxy", 
         "proxies_dict", 
         "secure_1psidts",
@@ -390,7 +367,6 @@ class AsyncChatbot:
             "rt": "c",
         }
 
-        # Combine all files into a unified array (backward compatible with older kwargs)
         all_files = []
         if files:
             if isinstance(files, list):
@@ -404,14 +380,12 @@ class AsyncChatbot:
 
         uploaded_files_array = []
         
-        # Upload loop dynamically constructs the file metadata array
         if all_files:
             for file_input in all_files:
                 try:
                     upload_id = await upload_file(file_input, proxy=self.proxies_dict, impersonate=self.impersonate)
                     mime_type, gemini_type_id, filename = detect_attachment_info(file_input)
                     
-                    # Appending to array based on the exact reverse-engineered structure
                     uploaded_files_array.append([
                         [upload_id, gemini_type_id, None, mime_type],
                         filename
@@ -420,7 +394,6 @@ class AsyncChatbot:
                     yield {"content": f"Error uploading file '{file_input}': {e}", "chunk": f"Error uploading file: {e}", "error": True}
                     return
 
-        # Prepare Conversation State Array (Relaxed check)
         if self.conversation_id:
             conversation_state = [
                 self.conversation_id,
@@ -431,7 +404,6 @@ class AsyncChatbot:
         else:
             conversation_state = ["", "", "", None, None, None, None, None, None, ""]
 
-        # Safely inject the new attachments array
         if uploaded_files_array:
             message_struct = [message, 0, None, uploaded_files_array, None, None, 0]
         else:
@@ -445,14 +417,12 @@ class AsyncChatbot:
         ]
         
         if regenerate:
-            # Gemini strictly validates array length when parsing the regenerate flag
             while len(request_payload) < 81:
                 request_payload.append(None)
             
-            # Apply required structure flags for deep-indexed payloads
             request_payload[67] = 0
             request_payload[68] = 2
-            request_payload[72] = 2  # The true regenerate instruction
+            request_payload[72] = 2 
             request_payload[79] = 6
             request_payload[80] = 1
 
@@ -474,7 +444,6 @@ class AsyncChatbot:
             )
             resp.raise_for_status()
 
-            # Keeps track of the length of text we have already yielded so we can emit exact delta "chunks"
             prev_content_length = 0
 
             async for line in resp.aiter_lines():
@@ -501,7 +470,6 @@ class AsyncChatbot:
                                     content = ""
                                     if len(body) > 4 and len(body[4]) > 0 and len(body[4][0]) > 1:
                                         raw_content = body[4][0][1]
-                                        # ROBUST TEXT EXTRACTION LOGIC
                                         def extract_text(item):
                                             if isinstance(item, str): return item
                                             if isinstance(item, list): return "".join(extract_text(x) for x in item if x is not None)
@@ -580,17 +548,16 @@ class AsyncChatbot:
                                     self.choice_id = choice_id
                                     self.conversation_token = conversation_token
 
-                                    # DELTA CHUNKING LOGIC FOR LIVE STREAMING
                                     chunk_delta = content[prev_content_length:]
                                     prev_content_length = len(content)
 
-                                    if chunk_delta or images:  # Only yield if there's actually new text or images to show
+                                    if chunk_delta or images: 
                                         yield {
-                                            "content": content,       # The complete, accumulated text so far
-                                            "chunk": chunk_delta,     # THE LIVE DELTA CHUNK (Use this for your fast UI typing!)
+                                            "content": content,
+                                            "chunk": chunk_delta, 
                                             "conversation_id": conversation_id,
                                             "response_id": response_id,
-                                            "choice_id": choice_id,   # ADDED: choice_id required for persistent streaming
+                                            "choice_id": choice_id, 
                                             "conversation_token": conversation_token,
                                             "images": images,
                                             "videos": videos,
@@ -642,7 +609,6 @@ class AsyncChatbot:
                     console.log(f"[red]Error uploading attachment '{file_input}': {e}[/red]")
                     return {"content": f"Error uploading attachment: {e}", "error": True}
 
-        # Prepare Conversation State Array (Relaxed check)
         if self.conversation_id:
             conversation_state = [
                 self.conversation_id,
@@ -666,14 +632,12 @@ class AsyncChatbot:
         ]
         
         if regenerate:
-            # Gemini strictly validates array length when parsing the regenerate flag
             while len(request_payload) < 81:
                 request_payload.append(None)
             
-            # Apply required structure flags for deep-indexed payloads
             request_payload[67] = 0
             request_payload[68] = 2
-            request_payload[72] = 2  # The true regenerate instruction
+            request_payload[72] = 2
             request_payload[79] = 6
             request_payload[80] = 1
 
@@ -733,8 +697,6 @@ class AsyncChatbot:
                 if len(body) > 4 and len(body[4]) > 0 and len(body[4][0]) > 1:
                     raw_content = body[4][0][1]
                     
-                    # ROBUST TEXT EXTRACTION LOGIC 
-                    # Recursively flattens nested lists back into standard text strings
                     def extract_text(item):
                         if isinstance(item, str): 
                             return item

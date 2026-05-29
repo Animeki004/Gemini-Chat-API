@@ -445,7 +445,7 @@
     <!-- Main Application Logic -->
     <script>
         let messageHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
-        let selectedFiles = []; // Upgraded to array for multiple files
+        let selectedFiles = [];
         let isGenerating = false;
 
         // --- FULLSCREEN IMAGE PREVIEW HANDLERS ---
@@ -456,7 +456,6 @@
             
             img.src = url;
             
-            // Set download action safely
             downloadBtn.onclick = async () => {
                 try {
                     const response = await fetch(url);
@@ -487,8 +486,7 @@
             };
             
             modal.classList.remove('hidden');
-            modal.classList.add('flex'); // Fix centering by explicitly activating flexbox
-            // Trigger reflow to ensure transition works
+            modal.classList.add('flex');
             void modal.offsetWidth;
             
             modal.classList.remove('opacity-0');
@@ -506,12 +504,11 @@
             
             setTimeout(() => {
                 modal.classList.add('hidden');
-                modal.classList.remove('flex'); // Clean up flexbox on close
+                modal.classList.remove('flex');
                 img.src = '';
             }, 300);
         }
 
-        // Global Esc key listener for the modal
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 const modal = document.getElementById('fullscreenModal');
@@ -586,7 +583,6 @@
             mobileOverlay.classList.toggle('hidden');
         }
 
-        // --- DYNAMIC MULTI-FILE UPLOADER ---
         function handleFileUpload(event) {
             const files = Array.from(event.target.files);
             if (files.length === 0) return;
@@ -742,7 +738,6 @@
             }
         }
 
-        // --- NEW CHAT ACTION SYSTEM ---
         function extractTextFromMsg(msg) {
             if (typeof msg.content === 'string') return msg.content;
             if (Array.isArray(msg.content)) {
@@ -769,7 +764,6 @@
             messageInput.focus();
         }
 
-        // Replace the entire function with:
         async function regenerateResponse() {
             if (isGenerating || messageHistory.length < 2) return;
             if (messageHistory[messageHistory.length - 1].role === 'assistant') {
@@ -903,7 +897,6 @@
                 return { wrapper, contentNode: bubble, actionBar };
             }
         }
-
         function renderChat() {
             chatBox.innerHTML = '';
             

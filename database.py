@@ -33,7 +33,6 @@ def init_db():
         c.execute("ALTER TABLE api_keys ADD COLUMN choice_id TEXT")
         c.execute("ALTER TABLE api_keys ADD COLUMN last_used REAL DEFAULT 0")
         c.execute("ALTER TABLE api_keys ADD COLUMN timeout_hours REAL DEFAULT 24")
-        c.execute("ALTER TABLE api_keys ADD COLUMN conversation_token TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
         
@@ -43,14 +42,20 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
-    # NEW: Rate Limiting Fields
+    # Rate Limiting Fields
     try:
-        # req_per_min limits how many requests this key can make in a 60 second window
         c.execute("ALTER TABLE api_keys ADD COLUMN req_per_min INTEGER DEFAULT 60")
-        # tracks how many requests have been made in the current window
         c.execute("ALTER TABLE api_keys ADD COLUMN current_req_count INTEGER DEFAULT 0")
-        # tracks the start time of the current 60 second window
         c.execute("ALTER TABLE api_keys ADD COLUMN window_start REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    # Extended Conversation State for Regeneration
+    try:
+        c.execute("ALTER TABLE api_keys ADD COLUMN conversation_token TEXT DEFAULT ''")
+        c.execute("ALTER TABLE api_keys ADD COLUMN prev_response_id TEXT DEFAULT ''")
+        c.execute("ALTER TABLE api_keys ADD COLUMN prev_choice_id TEXT DEFAULT ''")
+        c.execute("ALTER TABLE api_keys ADD COLUMN prev_conversation_token TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
 
@@ -59,7 +64,6 @@ def init_db():
                  (id INTEGER PRIMARY KEY, needs_update INTEGER, last_alert REAL, global_req_per_min INTEGER)''')
     c.execute("INSERT OR IGNORE INTO system_status (id, needs_update, last_alert, global_req_per_min) VALUES (1, 0, 0, 60)")
     
-    # Ensure global limit exists for older DBs
     try:
         c.execute("ALTER TABLE system_status ADD COLUMN global_req_per_min INTEGER DEFAULT 60")
     except sqlite3.OperationalError:
@@ -157,10 +161,8 @@ def get_api_key_details(key):
 def set_key_rate_limit(name_or_key, limit: int):
     conn = _get_conn()
     c = conn.cursor()
-    # Try updating by name first
     c.execute("UPDATE api_keys SET req_per_min = ? WHERE name = ?", (limit, name_or_key))
     if c.rowcount == 0:
-        # Fallback to updating by key
         c.execute("UPDATE api_keys SET req_per_min = ? WHERE key = ?", (limit, name_or_key))
     success = c.rowcount > 0
     conn.commit()
@@ -168,11 +170,6 @@ def set_key_rate_limit(name_or_key, limit: int):
     return success
 
 def check_rate_limit(key: str) -> bool:
-    """
-    Checks if the key has exceeded its rate limit.
-    Returns True if allowed, False if rate limited.
-    Automatically increments the counter if allowed.
-    """
     conn = _get_conn()
     c = conn.cursor()
     c.execute("SELECT req_per_min, current_req_count, window_start, role FROM api_keys WHERE key = ?", (key,))
@@ -184,26 +181,21 @@ def check_rate_limit(key: str) -> bool:
         
     req_per_min, current_req_count, window_start, role = row
     
-    # Admins bypass rate limits
     if role == 'admin':
         conn.close()
         return True
         
     now = time.time()
-    
-    # If the 60 second window has expired, reset the counter
     if now - window_start > 60.0:
         c.execute("UPDATE api_keys SET current_req_count = 1, window_start = ? WHERE key = ?", (now, key))
         conn.commit()
         conn.close()
         return True
         
-    # If we are within the window, check if we hit the limit
     if current_req_count >= req_per_min:
         conn.close()
         return False
         
-    # Otherwise, increment the counter
     c.execute("UPDATE api_keys SET current_req_count = current_req_count + 1 WHERE key = ?", (key,))
     conn.commit()
     conn.close()
@@ -213,33 +205,38 @@ def get_api_key_session(key):
     conn = _get_conn()
     c = conn.cursor()
     try:
-        c.execute("SELECT conversation_id, response_id, choice_id, last_used, timeout_hours, conversation_token FROM api_keys WHERE key = ?", (key,))
+        c.execute("SELECT conversation_id, response_id, choice_id, last_used, timeout_hours, conversation_token, prev_response_id, prev_choice_id, prev_conversation_token FROM api_keys WHERE key = ?", (key,))
         row = c.fetchone()
     except sqlite3.OperationalError:
         init_db()
-        c.execute("SELECT conversation_id, response_id, choice_id, last_used, timeout_hours, conversation_token FROM api_keys WHERE key = ?", (key,))
+        c.execute("SELECT conversation_id, response_id, choice_id, last_used, timeout_hours, conversation_token, prev_response_id, prev_choice_id, prev_conversation_token FROM api_keys WHERE key = ?", (key,))
         row = c.fetchone()
     conn.close()
     
     if not row:
         return None
         
-    cid, rid, chid, last_used, timeout_hours, ctok = row
+    cid, rid, chid, last_used, timeout_hours, ctok, prev_rid, prev_chid, prev_ctok = row
     
     if time.time() - last_used > (timeout_hours * 3600):
-        update_api_key_session(key, None, None, None, None)
+        update_api_key_session(key, None, None, None, None, False)
         return None
         
-    return {"cid": cid, "rid": rid, "chid": chid, "ctok": ctok}
+    return {"cid": cid, "rid": rid, "chid": chid, "ctok": ctok, "prev_rid": prev_rid, "prev_chid": prev_chid, "prev_ctok": prev_ctok}
 
-def update_api_key_session(key, cid, rid, chid, ctok=None):
+def update_api_key_session(key, cid, rid, chid, ctok=None, is_regenerate=False):
     conn = _get_conn()
     c = conn.cursor()
     try:
+        if not is_regenerate:
+            # Shift the current state into the 'prev' columns before overwriting the current state
+            c.execute("UPDATE api_keys SET prev_response_id = response_id, prev_choice_id = choice_id, prev_conversation_token = conversation_token WHERE key = ?", (key,))
         c.execute("UPDATE api_keys SET conversation_id = ?, response_id = ?, choice_id = ?, conversation_token = ?, last_used = ? WHERE key = ?", 
                   (cid, rid, chid, ctok, time.time(), key))
     except sqlite3.OperationalError:
         init_db()
+        if not is_regenerate:
+            c.execute("UPDATE api_keys SET prev_response_id = response_id, prev_choice_id = choice_id, prev_conversation_token = conversation_token WHERE key = ?", (key,))
         c.execute("UPDATE api_keys SET conversation_id = ?, response_id = ?, choice_id = ?, conversation_token = ?, last_used = ? WHERE key = ?", 
                   (cid, rid, chid, ctok, time.time(), key))
     conn.commit()
