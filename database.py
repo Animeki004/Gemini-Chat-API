@@ -33,6 +33,7 @@ def init_db():
         c.execute("ALTER TABLE api_keys ADD COLUMN choice_id TEXT")
         c.execute("ALTER TABLE api_keys ADD COLUMN last_used REAL DEFAULT 0")
         c.execute("ALTER TABLE api_keys ADD COLUMN timeout_hours REAL DEFAULT 24")
+        c.execute("ALTER TABLE api_keys ADD COLUMN conversation_token TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
         
@@ -211,26 +212,36 @@ def check_rate_limit(key: str) -> bool:
 def get_api_key_session(key):
     conn = _get_conn()
     c = conn.cursor()
-    c.execute("SELECT conversation_id, response_id, choice_id, last_used, timeout_hours FROM api_keys WHERE key = ?", (key,))
-    row = c.fetchone()
+    try:
+        c.execute("SELECT conversation_id, response_id, choice_id, last_used, timeout_hours, conversation_token FROM api_keys WHERE key = ?", (key,))
+        row = c.fetchone()
+    except sqlite3.OperationalError:
+        init_db()
+        c.execute("SELECT conversation_id, response_id, choice_id, last_used, timeout_hours, conversation_token FROM api_keys WHERE key = ?", (key,))
+        row = c.fetchone()
     conn.close()
     
     if not row:
         return None
         
-    cid, rid, chid, last_used, timeout_hours = row
+    cid, rid, chid, last_used, timeout_hours, ctok = row
     
     if time.time() - last_used > (timeout_hours * 3600):
-        update_api_key_session(key, None, None, None)
+        update_api_key_session(key, None, None, None, None)
         return None
         
-    return {"cid": cid, "rid": rid, "chid": chid}
+    return {"cid": cid, "rid": rid, "chid": chid, "ctok": ctok}
 
-def update_api_key_session(key, cid, rid, chid):
+def update_api_key_session(key, cid, rid, chid, ctok=None):
     conn = _get_conn()
     c = conn.cursor()
-    c.execute("UPDATE api_keys SET conversation_id = ?, response_id = ?, choice_id = ?, last_used = ? WHERE key = ?", 
-              (cid, rid, chid, time.time(), key))
+    try:
+        c.execute("UPDATE api_keys SET conversation_id = ?, response_id = ?, choice_id = ?, conversation_token = ?, last_used = ? WHERE key = ?", 
+                  (cid, rid, chid, ctok, time.time(), key))
+    except sqlite3.OperationalError:
+        init_db()
+        c.execute("UPDATE api_keys SET conversation_id = ?, response_id = ?, choice_id = ?, conversation_token = ?, last_used = ? WHERE key = ?", 
+                  (cid, rid, chid, ctok, time.time(), key))
     conn.commit()
     conn.close()
 

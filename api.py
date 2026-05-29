@@ -202,6 +202,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             bot.conversation_id = session_data["cid"]
             bot.response_id = session_data["rid"] or ""
             bot.choice_id = session_data["chid"] or ""
+            bot.conversation_token = session_data.get("ctok", "") or ""
 
         if request.stream:
             async def stream_generator():
@@ -290,7 +291,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
 
                     # Update persistent conversation session ONLY if we successfully got content and no errors cleared cid
                     if cid and has_content:
-                        db.update_api_key_session(api_key_token, cid, rid, chid)
+                        db.update_api_key_session(api_key_token, cid, rid, chid, result.get("conversation_token", ""))
                     else:
                         # Blank response or error -> Reset session immediately
                         db.update_api_key_session(api_key_token, None, None, None)
@@ -364,7 +365,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 db.update_api_key_session(api_key_token, None, None, None)
             else:
                 # Normal behavior: Save the active session
-                db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id)
+                db.update_api_key_session(api_key_token, bot.conversation_id, bot.response_id, bot.choice_id, getattr(bot, "conversation_token", ""))
 
             await bot.session.close()
 

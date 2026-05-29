@@ -210,6 +210,7 @@ class AsyncChatbot:
         self.conversation_id = ""
         self.response_id = ""
         self.choice_id = ""
+        self.conversation_token = ""
         self.secure_1psid = secure_1psid
         self.secure_1psidts = secure_1psidts
 
@@ -425,7 +426,7 @@ class AsyncChatbot:
                 self.conversation_id,
                 self.response_id or "",
                 self.choice_id or "",
-                None, None, None, None, None, None, ""
+                None, None, None, None, None, None, getattr(self, "conversation_token", "")
             ]
         else:
             conversation_state = ["", "", "", None, None, None, None, None, None, ""]
@@ -565,6 +566,7 @@ class AsyncChatbot:
 
                                     conversation_id = body[1][0] if len(body) > 1 and len(body[1]) > 0 else self.conversation_id
                                     response_id = body[1][1] if len(body) > 1 and len(body[1]) > 1 else self.response_id
+                                    conversation_token = body[1][9] if len(body) > 1 and len(body[1]) > 9 else getattr(self, "conversation_token", "")
 
                                     choices = []
                                     if len(body) > 4:
@@ -576,6 +578,7 @@ class AsyncChatbot:
                                     self.conversation_id = conversation_id
                                     self.response_id = response_id
                                     self.choice_id = choice_id
+                                    self.conversation_token = conversation_token
 
                                     # DELTA CHUNKING LOGIC FOR LIVE STREAMING
                                     chunk_delta = content[prev_content_length:]
@@ -588,6 +591,7 @@ class AsyncChatbot:
                                             "conversation_id": conversation_id,
                                             "response_id": response_id,
                                             "choice_id": choice_id,   # ADDED: choice_id required for persistent streaming
+                                            "conversation_token": conversation_token,
                                             "images": images,
                                             "videos": videos,
                                             "error": False,
@@ -644,7 +648,7 @@ class AsyncChatbot:
                 self.conversation_id,
                 self.response_id or "",
                 self.choice_id or "",
-                None, None, None, None, None, None, ""
+                None, None, None, None, None, None, getattr(self, "conversation_token", "")
             ]
         else:
             conversation_state = ["", "", "", None, None, None, None, None, None, ""]
@@ -742,6 +746,7 @@ class AsyncChatbot:
 
                 conversation_id = body[1][0] if len(body) > 1 and len(body[1]) > 0 else self.conversation_id
                 response_id = body[1][1] if len(body) > 1 and len(body[1]) > 1 else self.response_id
+                conversation_token = body[1][9] if len(body) > 1 and len(body[1]) > 9 else getattr(self, "conversation_token", "")
                 factualityQueries = body[3] if len(body) > 3 else None
                 textQuery = body[2][0] if len(body) > 2 and body[2] else ""
 
@@ -843,6 +848,7 @@ class AsyncChatbot:
                 self.conversation_id = conversation_id
                 self.response_id = response_id
                 self.choice_id = choice_id
+                self.conversation_token = conversation_token
                 self._reqid += random.randint(1000, 9000)
 
                 return results
