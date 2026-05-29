@@ -532,7 +532,7 @@ if bot:
             return
             
         allowed_models = message.text.strip().lower()
-        msg = bot.reply_to(message, "⏳ <b>Set Expiry Time</b>\n\nEnter the number of hours until this key expires (e.g., <code>24</code> for one day, <code>1</code> for one hour).\n\n• Type <code>0</code> for a <b>Permanent</b> key.", parse_mode="HTML")
+        msg = bot.reply_to(message, "⏳ <b>Set Expiry Time</b>\n\nEnter the duration until this key expires. You can use formats like:\n\n• <code>1 week</code>, <code>1 month</code>, <code>2 days</code>, or <code>12 hours</code>.\n• Type <code>0</code> or <code>permanent</code> for a <b>Permanent</b> key.", parse_mode="HTML")
         bot.register_next_step_handler(msg, process_newkey_expiry, name, allowed_models)
 
     def process_newkey_expiry(message, name, allowed_models):
@@ -541,14 +541,49 @@ if bot:
             bot.reply_to(message, "❌ Key generation cancelled.", parse_mode="HTML")
             return
             
+        text = message.text.strip().lower()
+        expires_in_hours = 0.0
+        
         try:
-            expires_in_hours = float(message.text.strip())
+            if text in ['0', 'permanent', 'none', 'never']:
+                expires_in_hours = 0.0
+            else:
+                match = re.match(r'^([\d.]+)\s*([a-z]+)?$', text)
+                if match:
+                    val = float(match.group(1))
+                    unit = match.group(2)
+                    
+                    if not unit or unit.startswith('h'): # hours
+                        expires_in_hours = val
+                    elif unit.startswith('d'): # days
+                        expires_in_hours = val * 24
+                    elif unit.startswith('w'): # weeks
+                        expires_in_hours = val * 24 * 7
+                    elif unit.startswith('m'): # months (approx 30 days)
+                        expires_in_hours = val * 24 * 30
+                    elif unit.startswith('y'): # years
+                        expires_in_hours = val * 24 * 365
+                    else:
+                        raise ValueError()
+                else:
+                    raise ValueError()
         except ValueError:
-            bot.reply_to(message, "❌ Invalid number. Key generation cancelled.", parse_mode="HTML")
+            bot.reply_to(message, "❌ Invalid time format. Please use digits like '1 day', '12 hours', or '1 month'. Key generation cancelled.", parse_mode="HTML")
             return
 
         new_key = db.generate_api_key(name, allowed_models, role="user", expires_in_hours=expires_in_hours)
-        expiry_text = "Permanent" if expires_in_hours <= 0 else f"{expires_in_hours} hours"
+        
+        if expires_in_hours <= 0:
+            expiry_text = "Permanent"
+        elif expires_in_hours >= 720:
+            expiry_text = f"{round(expires_in_hours / 720, 1)} month(s)"
+        elif expires_in_hours >= 168:
+            expiry_text = f"{round(expires_in_hours / 168, 1)} week(s)"
+        elif expires_in_hours >= 24:
+            expiry_text = f"{round(expires_in_hours / 24, 1)} day(s)"
+        else:
+            expiry_text = f"{expires_in_hours} hour(s)"
+            
         bot.reply_to(message, f"✅ <b>Standard API Key Generated for:</b> {name}\n\n<code>{new_key}</code>\n\n<b>Allowed Models:</b> <code>{allowed_models}</code>\n<b>Expiry:</b> <code>{expiry_text}</code>", parse_mode="HTML")
 
     @bot.message_handler(commands=['listkeys'])
@@ -567,7 +602,14 @@ if bot:
                     status = "🔴 Expired"
                 else:
                     hours_left = round((expires_at - time.time()) / 3600, 1)
-                    status += f" (Expires in {hours_left}h)"
+                    if hours_left > 720:
+                        status += f" (Expires in {round(hours_left/720, 1)}mo)"
+                    elif hours_left > 168:
+                        status += f" (Expires in {round(hours_left/168, 1)}w)"
+                    elif hours_left > 24:
+                        status += f" (Expires in {round(hours_left/24, 1)}d)"
+                    else:
+                        status += f" (Expires in {hours_left}h)"
             elif active:
                 status += " (Permanent)"
                 
