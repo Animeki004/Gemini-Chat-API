@@ -1037,7 +1037,7 @@
             await triggerGenerationStream();
         }
 
-        async function triggerGenerationStream() {
+        async function triggerGenerationStream(isRegenerate = false) {
             const baseUrl = apiUrlInput.value.replace(/\/+$/, '');
             const apiKey = apiKeyInput.value.trim();
             const model = modelSelect.value;
