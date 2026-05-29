@@ -519,6 +519,35 @@ class AsyncChatbot:
                                         )
                                         images.append(img_obj)
 
+                                    videos = []
+                                    def extract_youtube_videos(obj, vids=None, seen=None):
+                                        if vids is None: vids = []
+                                        if seen is None: seen = set()
+                                        if isinstance(obj, list):
+                                            for item in obj: extract_youtube_videos(item, vids, seen)
+                                        elif isinstance(obj, dict):
+                                            url = obj.get("url") or obj.get("uri") or obj.get("link")
+                                            if isinstance(url, str) and ("youtube.com/watch" in url or "youtu.be/" in url):
+                                                match = re.search(r'(?:v=|youtu\.be/)([\w-]+)', url)
+                                                if match:
+                                                    vid_id = match.group(1)
+                                                    if vid_id not in seen:
+                                                        seen.add(vid_id)
+                                                        vids.append({
+                                                            "video_id": vid_id,
+                                                            "title": obj.get("title", "YouTube Video"),
+                                                            "channel": obj.get("author") or obj.get("channel", "YouTube"),
+                                                            "thumbnail": f"https://img.youtube.com/vi/{vid_id}/maxresdefault.jpg",
+                                                            "url": url
+                                                        })
+                                            for val in obj.values(): extract_youtube_videos(val, vids, seen)
+                                        return vids
+                                        
+                                    videos = extract_youtube_videos(body)
+
+                                    content = re.sub(r'!?\[[^\]]*\]\((?:https?://)?(?:[^)]*?)googleusercontent\.com/youtube_content/[^)]+\)', '', content)
+                                    content = re.sub(r'(?:https?://)?(?:[^)\s]*?)googleusercontent\.com/youtube_content/\S+', '', content)    
+
                                     content = re.sub(r'!?\[[^\]]*\]\((?:https?://)?(?:[^)]*?)googleusercontent\.com/image_(?:collection|generation_content)/[^)]+\)', '', content)
                                     content = re.sub(r'(?:https?://)?(?:[^)\s]*?)googleusercontent\.com/image_(?:collection|generation_content)/\S+', '', content)
 
@@ -548,6 +577,7 @@ class AsyncChatbot:
                                             "response_id": response_id,
                                             "choice_id": choice_id,   # ADDED: choice_id required for persistent streaming
                                             "images": images,
+                                            "videos": videos,
                                             "error": False,
                                         }
                 except json.JSONDecodeError:
@@ -723,6 +753,34 @@ class AsyncChatbot:
                     images.append(img_obj)
                     console.log(f"[green]Image detected![/green] {img_obj.title}") 
 
+                videos = []
+                def extract_youtube_videos(obj, vids=None, seen=None):
+                    if vids is None: vids = []
+                    if seen is None: seen = set()
+                    if isinstance(obj, list):
+                        for item in obj: extract_youtube_videos(item, vids, seen)
+                    elif isinstance(obj, dict):
+                        url = obj.get("url") or obj.get("uri") or obj.get("link")
+                        if isinstance(url, str) and ("youtube.com/watch" in url or "youtu.be/" in url):
+                            match = re.search(r'(?:v=|youtu\.be/)([\w-]+)', url)
+                            if match:
+                                vid_id = match.group(1)
+                                if vid_id not in seen:
+                                    seen.add(vid_id)
+                                    vids.append({
+                                        "video_id": vid_id,
+                                        "title": obj.get("title", "YouTube Video"),
+                                        "channel": obj.get("author") or obj.get("channel", "YouTube"),
+                                        "thumbnail": f"https://img.youtube.com/vi/{vid_id}/maxresdefault.jpg",
+                                        "url": url
+                                    })
+                        for val in obj.values(): extract_youtube_videos(val, vids, seen)
+                    return vids
+                    
+                videos = extract_youtube_videos(body)
+                if videos:
+                    console.log(f"[green]YouTube Videos detected![/green] {len(videos)} found.")   
+
                 if not images and content:
                     try:
                         urls = re.findall(r'(https?://[^\s]+\.(?:jpg|jpeg|png|gif|webp))', content.lower())
@@ -742,6 +800,9 @@ class AsyncChatbot:
                 content = re.sub(r'!?\[[^\]]*\]\((?:https?://)?(?:[^)]*?)googleusercontent\.com/image_(?:collection|generation_content)/[^)]+\)', '', content)
                 content = re.sub(r'(?:https?://)?(?:[^)\s]*?)googleusercontent\.com/image_(?:collection|generation_content)/\S+', '', content)
 
+                content = re.sub(r'!?\[[^\]]*\]\((?:https?://)?(?:[^)]*?)googleusercontent\.com/youtube_content/[^)]+\)', '', content)
+                content = re.sub(r'(?:https?://)?(?:[^)\s]*?)googleusercontent\.com/youtube_content/\S+', '', content)
+
                 results = {
                     "content": content,
                     "conversation_id": conversation_id,
@@ -751,6 +812,7 @@ class AsyncChatbot:
                     "textQuery": textQuery,
                     "choices": choices,
                     "images": images,
+                    "videos": videos,
                     "error": False,
                 }
 

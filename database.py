@@ -36,33 +36,16 @@ def init_db():
     except sqlite3.OperationalError:
         pass
         
-    # Security role for Admin API Keys
+    # NEW: Security role for Admin API Keys
     try:
         c.execute("ALTER TABLE api_keys ADD COLUMN role TEXT DEFAULT 'user'")
     except sqlite3.OperationalError:
         pass
 
-    # NEW: Rate Limiting Fields
-    try:
-        # req_per_min limits how many requests this key can make in a 60 second window
-        c.execute("ALTER TABLE api_keys ADD COLUMN req_per_min INTEGER DEFAULT 60")
-        # tracks how many requests have been made in the current window
-        c.execute("ALTER TABLE api_keys ADD COLUMN current_req_count INTEGER DEFAULT 0")
-        # tracks the start time of the current 60 second window
-        c.execute("ALTER TABLE api_keys ADD COLUMN window_start REAL DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass
-
-    # System status table for Extension Polling and Flood Control
+    # NEW: System status table for Extension Polling and Flood Control
     c.execute('''CREATE TABLE IF NOT EXISTS system_status
-                 (id INTEGER PRIMARY KEY, needs_update INTEGER, last_alert REAL, global_req_per_min INTEGER)''')
-    c.execute("INSERT OR IGNORE INTO system_status (id, needs_update, last_alert, global_req_per_min) VALUES (1, 0, 0, 60)")
-    
-    # Ensure global limit exists for older DBs
-    try:
-        c.execute("ALTER TABLE system_status ADD COLUMN global_req_per_min INTEGER DEFAULT 60")
-    except sqlite3.OperationalError:
-        pass
+                 (id INTEGER PRIMARY KEY, needs_update INTEGER, last_alert REAL)''')
+    c.execute("INSERT OR IGNORE INTO system_status (id, needs_update, last_alert) VALUES (1, 0, 0)")
         
     conn.commit()
     conn.close()
@@ -88,34 +71,17 @@ def get_cookies():
     conn.close()
     return row if row else (None, None)
 
-def get_global_rate_limit():
-    conn = _get_conn()
-    c = conn.cursor()
-    c.execute("SELECT global_req_per_min FROM system_status WHERE id = 1")
-    row = c.fetchone()
-    conn.close()
-    return row[0] if row else 60
-
-def set_global_rate_limit(limit: int):
-    conn = _get_conn()
-    c = conn.cursor()
-    c.execute("UPDATE system_status SET global_req_per_min = ? WHERE id = 1", (limit,))
-    conn.commit()
-    conn.close()
-
 def generate_api_key(name, allowed_models="all", role="user"):
     key = "sk-" + uuid.uuid4().hex
-    global_limit = get_global_rate_limit()
-    
     conn = _get_conn()
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours, role, req_per_min) VALUES (?, ?, 1, ?, ?, ?, ?, ?)", 
-                  (key, name, allowed_models, time.time(), 24.0, role, global_limit))
+        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours, role) VALUES (?, ?, 1, ?, ?, ?, ?)", 
+                  (key, name, allowed_models, time.time(), 24.0, role))
     except sqlite3.OperationalError:
         init_db() 
-        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours, role, req_per_min) VALUES (?, ?, 1, ?, ?, ?, ?, ?)", 
-                  (key, name, allowed_models, time.time(), 24.0, role, global_limit))
+        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours, role) VALUES (?, ?, 1, ?, ?, ?, ?)", 
+                  (key, name, allowed_models, time.time(), 24.0, role))
     conn.commit()
     conn.close()
     return key
@@ -124,10 +90,10 @@ def list_api_keys():
     conn = _get_conn()
     c = conn.cursor()
     try:
-        c.execute("SELECT key, name, active, allowed_models, timeout_hours, role, req_per_min FROM api_keys")
+        c.execute("SELECT key, name, active, allowed_models, timeout_hours, role FROM api_keys")
     except sqlite3.OperationalError:
         init_db()
-        c.execute("SELECT key, name, active, allowed_models, timeout_hours, role, req_per_min FROM api_keys")
+        c.execute("SELECT key, name, active, allowed_models, timeout_hours, role FROM api_keys")
     rows = c.fetchall()
     conn.close()
     return rows
@@ -152,61 +118,6 @@ def get_api_key_details(key):
     row = c.fetchone()
     conn.close()
     return row
-
-def set_key_rate_limit(name_or_key, limit: int):
-    conn = _get_conn()
-    c = conn.cursor()
-    # Try updating by name first
-    c.execute("UPDATE api_keys SET req_per_min = ? WHERE name = ?", (limit, name_or_key))
-    if c.rowcount == 0:
-        # Fallback to updating by key
-        c.execute("UPDATE api_keys SET req_per_min = ? WHERE key = ?", (limit, name_or_key))
-    success = c.rowcount > 0
-    conn.commit()
-    conn.close()
-    return success
-
-def check_rate_limit(key: str) -> bool:
-    """
-    Checks if the key has exceeded its rate limit.
-    Returns True if allowed, False if rate limited.
-    Automatically increments the counter if allowed.
-    """
-    conn = _get_conn()
-    c = conn.cursor()
-    c.execute("SELECT req_per_min, current_req_count, window_start, role FROM api_keys WHERE key = ?", (key,))
-    row = c.fetchone()
-    
-    if not row:
-        conn.close()
-        return False
-        
-    req_per_min, current_req_count, window_start, role = row
-    
-    # Admins bypass rate limits
-    if role == 'admin':
-        conn.close()
-        return True
-        
-    now = time.time()
-    
-    # If the 60 second window has expired, reset the counter
-    if now - window_start > 60.0:
-        c.execute("UPDATE api_keys SET current_req_count = 1, window_start = ? WHERE key = ?", (now, key))
-        conn.commit()
-        conn.close()
-        return True
-        
-    # If we are within the window, check if we hit the limit
-    if current_req_count >= req_per_min:
-        conn.close()
-        return False
-        
-    # Otherwise, increment the counter
-    c.execute("UPDATE api_keys SET current_req_count = current_req_count + 1 WHERE key = ?", (key,))
-    conn.commit()
-    conn.close()
-    return True
 
 def get_api_key_session(key):
     conn = _get_conn()

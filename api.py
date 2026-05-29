@@ -240,16 +240,19 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                                     safe_imgs.append({"url": img.url, "title": getattr(img, 'title', 'Image')})
                                 elif isinstance(img, dict) and 'url' in img:
                                     safe_imgs.append({"url": img['url'], "title": img.get('title', 'Image')})
+                                    safe_vids = result.get("videos", [])
                             
-                            # Emit the live text chunk and images
-                            if chunk_text or safe_imgs:
+                            # Emit the live text chunk, images, and videos
+                            if chunk_text or safe_imgs or safe_vids:
                                 has_content = True
                                 delta_data = {}
                                 if chunk_text:
                                     delta_data["content"] = chunk_text
                                 if safe_imgs:
                                     delta_data["images"] = safe_imgs
-                                    
+                                if safe_vids:
+                                    delta_data["videos"] = safe_vids
+
                                 chunk_json = {
                                     "id": f"chatcmpl-{uuid.uuid4().hex}",
                                     "object": "chat.completion.chunk",
@@ -352,8 +355,10 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 elif isinstance(img, dict) and 'url' in img:
                     safe_imgs.append({"url": img['url'], "title": img.get('title', 'Image')})
 
+            safe_vids = response.get("videos", [])
+
             # RESET SESSION: If we got a completely blank response (usually signifies bad session state)
-            if not final_content and not safe_imgs:
+            if not final_content and not safe_imgs and not safe_vids:
                 db.update_api_key_session(api_key_token, None, None, None)
             else:
                 # Normal behavior: Save the active session
@@ -366,7 +371,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 "object": "chat.completion",
                 "created": int(time.time()),
                 "model": request.model,
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content, "images": safe_imgs}, "finish_reason": "stop"}]
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content, "images": safe_imgs, "videos": safe_vids}, "finish_reason": "stop"}]
             }
 
     except HTTPException:
