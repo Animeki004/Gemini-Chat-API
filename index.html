@@ -113,7 +113,10 @@
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Native Gemini Inline Citation Hover Logic */
+        /* ============================================================== */
+        /* NATIVE GEMINI INLINE CITATION HOVER LOGIC (CORRECTED)          */
+        /* ============================================================== */
+        
         .gemini-source-wrapper {
             position: relative;
             display: inline;
@@ -121,20 +124,24 @@
         .gemini-source-text {
             transition: background-color 0.2s, color 0.2s;
             border-radius: 4px;
+            cursor: default; /* Not a link by default */
         }
-        /* Only highlight the text when hovering the grey pill link */
+        
+        /* MAGIC: Only highlight the text when specifically hovering the grey pill */
         .gemini-source-wrapper:has(.gemini-source-pill:hover) .gemini-source-text {
             background-color: #1a2b4c;
             color: #a8c7fa;
         }
+        
         .gemini-source-pill {
             display: inline-block;
             margin-left: 0.25rem;
             position: relative;
             vertical-align: middle;
             transform: translateY(-2px);
-            cursor: pointer;
+            cursor: default; /* Grey pill itself is not the link */
         }
+        
         .gemini-source-tooltip {
             position: absolute;
             bottom: 100%;
@@ -149,14 +156,28 @@
             border: 1px solid #374151; /* gray-700 */
             border-radius: 0.75rem;
             padding: 0.75rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
             z-index: 9999;
             white-space: normal;
             text-align: left;
             display: flex;
             flex-direction: column;
-            cursor: default;
+            cursor: pointer;
+            text-decoration: none !important;
+            pointer-events: none; /* Crucial: Don't block interactions when invisible */
         }
+        
+        /* Transparent bridge so hover doesn't break when moving mouse to the tooltip */
+        .gemini-source-tooltip::before {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            height: 1.5rem;
+            background: transparent;
+        }
+
         /* Triangle Arrow Pointing Down */
         .gemini-source-tooltip::after {
             content: '';
@@ -168,10 +189,12 @@
             border-style: solid;
             border-color: #1e1e1e transparent transparent transparent;
         }
-        /* Only show tooltip when hovering the grey pill link */
+        
+        /* Trigger reveal AND enable clicks when hovered */
         .gemini-source-pill:hover .gemini-source-tooltip {
             opacity: 1;
             visibility: visible;
+            pointer-events: auto; /* Enable clicking */
         }
     </style>
 </head>
@@ -362,8 +385,8 @@
             const isCitationNum = /^\[?\d+\]?$/.test(text) || text.trim() === 'source';
             
             if (isCitationNum) {
-                // Generates an isolated source pill logic without wrapping any preceding text
-                return `<span class="gemini-source-pill"><a href="${href}" target="_blank" class="inline-flex items-center gap-1 bg-[#1a1a1a] hover:bg-[#252525] border border-gray-700/60 px-2 py-[2px] rounded-full transition-colors no-underline"><span class="text-[10px] font-medium text-gray-400 hover:text-gray-200">${domain}</span></a><span class="gemini-source-tooltip"><span class="flex items-center gap-2 mb-1.5"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0"><span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span></span><span class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${title || domain}</span></span></span>`;
+                // Pill is NOT a link. Tooltip IS the link.
+                return `<span class="gemini-source-pill"><span class="inline-flex items-center gap-1 bg-[#1a1a1a] hover:bg-[#252525] border border-gray-700/60 px-2 py-[2px] rounded-full transition-colors cursor-default"><span class="text-[10px] font-medium text-gray-400 hover:text-gray-200">${domain}</span></span><a href="${href}" target="_blank" class="gemini-source-tooltip hover:border-gray-500 hover:bg-[#252525] transition-colors"><span class="flex items-center gap-2 mb-1.5"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0"><span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span></span><span class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${title || domain}</span></a></span>`;
             } else {
                 return `<a href="${href}" target="_blank" class="text-blue-400 hover:text-blue-300 transition-colors">${text}</a>`;
             }
@@ -385,8 +408,8 @@
                 try { domain = new URL(src.url).hostname.replace('www.', ''); } catch(e){}
                 let safeTitle = (src.title || '').replace(/"/g, '&quot;');
                 
-                // Pure CSS isolation: The grey pill contains the hover logic to trigger the tooltip and highlight the text sibling
-                const pillHTML = `<span class="gemini-source-pill"><a href="${src.url}" target="_blank" class="inline-flex items-center bg-[#282a2c] hover:bg-[#343638] border border-gray-700/50 px-2 py-[2px] rounded-full transition-colors no-underline"><span class="text-[10px] font-medium text-[#c4c7c5] hover:text-white truncate max-w-[100px]">${domain}</span></a><span class="gemini-source-tooltip"><span class="flex items-center gap-2 mb-1.5"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0"><span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span></span><span class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${safeTitle}</span></span></span>`;
+                // Pure CSS isolation: The grey pill is just a span. The tooltip inside is the clickable <a>
+                const pillHTML = `<span class="gemini-source-pill"><span class="inline-flex items-center bg-[#282a2c] hover:bg-[#343638] border border-gray-700/50 px-2 py-[2px] rounded-full transition-colors cursor-default"><span class="text-[10px] font-medium text-[#c4c7c5] hover:text-white truncate max-w-[100px]">${domain}</span></span><a href="${src.url}" target="_blank" class="gemini-source-tooltip hover:border-gray-500 hover:bg-[#252525] transition-colors"><span class="flex items-center gap-2 mb-1.5"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0"><span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span></span><span class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${safeTitle}</span></a></span>`;
 
                 if (src.snippet && src.snippet.length > 3) {
                     const cleanSnippet = src.snippet.replace(/[*_~`]/g, '').trim();
@@ -443,8 +466,9 @@
             links.forEach(link => {
                 if (link.dataset.ytTransformed) return;
                 
-                const outerGroup = link.closest('.gemini-source-wrapper');
-                const targetToReplace = outerGroup ? outerGroup : link;
+                // Do not convert native source pills or their tooltips into video cards!
+                if (link.closest('.gemini-source-pill')) return;
+                if (link.closest('.gemini-source-wrapper')) return;
                 
                 const url = link.href;
                 let videoId = null;
@@ -479,13 +503,13 @@
                         </div>
                     </div>`;
                     
-                    const parentLi = targetToReplace.closest('li');
-                    if (parentLi && parentLi.textContent.trim() === targetToReplace.textContent.trim()) {
+                    const parentLi = link.closest('li');
+                    if (parentLi && parentLi.textContent.trim() === link.textContent.trim()) {
                         parentLi.style.listStyle = 'none';
                         parentLi.style.marginLeft = '-1.5rem';
                         parentLi.style.marginBottom = '0.5rem';
                     }
-                    targetToReplace.outerHTML = cardHTML;
+                    link.outerHTML = cardHTML;
                 }
             });
         }
