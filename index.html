@@ -108,6 +108,10 @@
 
         /* Sidebar transitions */
         .sidebar-transition { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        /* Hide Scrollbar for Carousels */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="flex h-screen w-full bg-gray-850">
@@ -255,7 +259,7 @@
         <span id="toastMessage" class="text-sm font-medium"></span>
     </div>
 
-    <!-- Monaco Editor Logic -->
+    <!-- Monaco Editor Logic & MARKED.JS CUSTOM RENDERER -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
     <script>
         let monacoThemeDefined = false;
@@ -277,6 +281,34 @@
             monacoThemeDefined = true;
         });
 
+        // ==========================================
+        // CUSTOM MARKED.JS RENDERER FOR INLINE CITATIONS
+        // ==========================================
+        const renderer = new marked.Renderer();
+        renderer.link = function(href, title, text) {
+            let domain = '';
+            try { domain = new URL(href).hostname.replace('www.', ''); } catch(e){}
+            
+            // Determine if it's a numeric citation [1] or a full text link
+            const isCitation = /^\[?\d+\]?$/.test(text) || text.length <= 2;
+            const pxClass = isCitation ? 'px-1.5 rounded-full text-[10px] align-super' : 'px-1.5 rounded-md text-sm';
+            
+            return `<span class="relative group inline-block cursor-pointer mx-0.5 whitespace-nowrap">
+                <a href="${href}" target="_blank" class="text-blue-400 bg-blue-500/10 ${pxClass} py-0.5 hover:bg-blue-500/20 transition-colors no-underline font-medium border border-blue-500/20 hover:border-blue-500/40">${text}</a>
+                
+                <!-- Rich Hover Tooltip / Mini Window -->
+                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 w-64 bg-[#1e1e1e] border border-gray-700 rounded-xl p-3 shadow-2xl z-[100] pointer-events-none whitespace-normal text-left">
+                    <div class="flex items-center gap-2 mb-1.5">
+                        <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0">
+                        <span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span>
+                    </div>
+                    <div class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug">${title || domain}</div>
+                </div>
+            </span>`;
+        };
+        marked.use({ renderer });
+
+
         function fallbackCopyTextToClipboard(text) {
             const textArea = document.createElement("textarea");
             textArea.value = text;
@@ -292,6 +324,8 @@
             const links = container.querySelectorAll('a[href*="youtube.com/watch"], a[href*="youtu.be/"]');
             links.forEach(link => {
                 if (link.dataset.ytTransformed) return;
+                // If it's already part of our custom inline citation tooltip, skip it
+                if (link.closest('.group')) return;
                 
                 const url = link.href;
                 let videoId = null;
@@ -309,10 +343,10 @@
                     
                     const cardHTML = `
                     <div class="mt-3 mb-4 flex flex-col bg-gray-900 border border-gray-700 rounded-xl overflow-hidden shadow-lg hover:border-gray-500 transition-colors w-full max-w-md">
-                        <div class="relative w-full aspect-video bg-black cursor-pointer group" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${videoId}?autoplay=1\\' frameborder=\\'0\\' allow=\\'autoplay; encrypted-media\\' allowfullscreen></iframe>'">
-                            <img src="https://img.youtube.com/vi/${videoId}/maxresdefault.jpg" onerror="this.src='https://img.youtube.com/vi/${videoId}/hqdefault.jpg'" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                        <div class="relative w-full aspect-video bg-black cursor-pointer group-yt" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${videoId}?autoplay=1\\' frameborder=\\'0\\' allow=\\'autoplay; encrypted-media\\' allowfullscreen></iframe>'">
+                            <img src="https://img.youtube.com/vi/${videoId}/maxresdefault.jpg" onerror="this.src='https://img.youtube.com/vi/${videoId}/hqdefault.jpg'" class="w-full h-full object-cover opacity-80 group-yt-hover:opacity-100 transition-opacity">
                             <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.5)] group-hover:scale-110 transition-transform">
+                                <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.5)] group-yt-hover:scale-110 transition-transform">
                                     <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                                 </div>
                             </div>
@@ -327,7 +361,6 @@
                     </div>`;
                     
                     const parentLi = link.closest('li');
-                    // Hide bullet points if the list item ONLY contains the video link
                     if (parentLi && parentLi.textContent.trim() === link.textContent.trim()) {
                         parentLi.style.listStyle = 'none';
                         parentLi.style.marginLeft = '-1.5rem';
@@ -372,7 +405,6 @@
                 let editorInstance = null;
                 let iframe = null;
 
-                // HTML PREVIEW BUTTON
                 if (lang === 'html') {
                     const previewBtn = document.createElement('button');
                     previewBtn.className = 'flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-100 transition-colors py-1';
@@ -445,10 +477,9 @@
     <!-- Main Application Logic -->
     <script>
         let messageHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
-        let selectedFiles = []; // Upgraded to array for multiple files
+        let selectedFiles = []; 
         let isGenerating = false;
 
-        // --- FULLSCREEN IMAGE PREVIEW HANDLERS ---
         function openImageModal(url, title) {
             const modal = document.getElementById('fullscreenModal');
             const img = document.getElementById('fullscreenImage');
@@ -456,7 +487,6 @@
             
             img.src = url;
             
-            // Set download action safely
             downloadBtn.onclick = async () => {
                 try {
                     const response = await fetch(url);
@@ -487,8 +517,7 @@
             };
             
             modal.classList.remove('hidden');
-            modal.classList.add('flex'); // Fix centering by explicitly activating flexbox
-            // Trigger reflow to ensure transition works
+            modal.classList.add('flex'); 
             void modal.offsetWidth;
             
             modal.classList.remove('opacity-0');
@@ -506,12 +535,11 @@
             
             setTimeout(() => {
                 modal.classList.add('hidden');
-                modal.classList.remove('flex'); // Clean up flexbox on close
+                modal.classList.remove('flex'); 
                 img.src = '';
             }, 300);
         }
 
-        // Global Esc key listener for the modal
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 const modal = document.getElementById('fullscreenModal');
@@ -521,7 +549,6 @@
             }
         });
 
-        // --- CAROUSEL GLOBALS ---
         window.carouselState = {};
         window.moveCarousel = function(id, dir, total) {
             if (typeof window.carouselState[id] === 'undefined') window.carouselState[id] = 0;
@@ -586,7 +613,6 @@
             mobileOverlay.classList.toggle('hidden');
         }
 
-        // --- DYNAMIC MULTI-FILE UPLOADER ---
         function handleFileUpload(event) {
             const files = Array.from(event.target.files);
             if (files.length === 0) return;
@@ -742,7 +768,6 @@
             }
         }
 
-        // --- NEW CHAT ACTION SYSTEM ---
         function extractTextFromMsg(msg) {
             if (typeof msg.content === 'string') return msg.content;
             if (Array.isArray(msg.content)) {
@@ -895,6 +920,21 @@
             }
         }
 
+        // Applies dynamic citations into the raw text by converting [1] to markdown links
+        function preprocessCitations(rawContent, sources) {
+            if (!rawContent || !sources || sources.length === 0) return rawContent;
+            return rawContent.replace(/\[(\d+)\]/g, (match, num) => {
+                const srcIdx = parseInt(num) - 1;
+                const src = sources[srcIdx];
+                if (src) {
+                    // Turn it into a markdown link with Title as tooltip
+                    const safeTitle = (src.title || '').replace(/"/g, '&quot;');
+                    return `[${num}](${src.url} "${safeTitle}")`;
+                }
+                return match;
+            });
+        }
+
         function renderChat() {
             chatBox.innerHTML = '';
             
@@ -940,7 +980,10 @@
                         nodeData.contentNode.textContent = msg.content;
                     }
                 } else {
-                    nodeData.contentNode.innerHTML = marked.parse(msg.content || '');
+                    // Pre-process citations if sources exist
+                    const processedText = preprocessCitations(msg.content || '', msg.sources);
+                    nodeData.contentNode.innerHTML = marked.parse(processedText);
+                    
                     transformYouTubeLinks(nodeData.contentNode);
                     applyMonacoEditors(nodeData.contentNode);
                     
@@ -982,10 +1025,10 @@
                         msg.videos.forEach((vid, i) => {
                             videoHTML += `
                                 <div class="flex flex-col bg-gray-900 border border-gray-700 rounded-xl overflow-hidden shadow-lg hover:border-gray-500 transition-colors">
-                                    <div class="relative w-full aspect-video bg-black cursor-pointer group" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${vid.video_id}?autoplay=1\\' frameborder=\\'0\\' allow=\\'autoplay; encrypted-media\\' allowfullscreen></iframe>'">
-                                        <img src="${vid.thumbnail}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
-                                        <div class="absolute inset-0 flex items-center justify-center">
-                                            <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                    <div class="relative w-full aspect-video bg-black cursor-pointer group-yt" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${vid.video_id}?autoplay=1\\' frameborder=\\'0\\' allow=\\'autoplay; encrypted-media\\' allowfullscreen></iframe>'">
+                                        <img src="${vid.thumbnail}" class="w-full h-full object-cover opacity-80 group-yt-hover:opacity-100 transition-opacity">
+                                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                            <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-lg group-yt-hover:scale-110 transition-transform">
                                                 <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                                             </div>
                                         </div>
@@ -1004,22 +1047,30 @@
                         nodeData.contentNode.insertAdjacentHTML('beforeend', videoHTML);
                     }
                     
-                    // --- WEB SOURCES RENDERING (NEW) ---
+                    // --- BEAUTIFUL SOURCES OVERVIEW CAROUSEL ---
                     if (msg.sources && msg.sources.length > 0) {
-                        let sourcesHTML = `<div class="mt-4 flex flex-wrap gap-2 pt-2 border-t border-gray-800">`;
-                        msg.sources.forEach(src => {
-                            try {
-                                let domain = new URL(src.url).hostname.replace('www.', '');
-                                sourcesHTML += `
-                                <a href="${src.url}" target="_blank" class="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-1.5 rounded-full transition-colors !no-underline group shadow-sm w-fit max-w-[200px]">
-                                    <div class="w-4 h-4 rounded-full bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
-                                        <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-full h-full object-cover">
-                                    </div>
-                                    <span class="text-xs font-medium text-gray-300 group-hover:text-blue-400 truncate">${src.title || domain}</span>
-                                </a>`;
-                            } catch(e){}
+                        let sourcesHTML = `<div class="mt-5 pt-3 border-t border-gray-800/60 w-full overflow-hidden">
+                            <div class="flex items-center gap-2 mb-3">
+                                <div class="w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center">
+                                    <svg class="w-3 h-3 text-blue-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                                </div>
+                                <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Sources</span>
+                            </div>
+                            <div class="flex gap-3 overflow-x-auto pb-2 scroll-smooth scrollbar-hide">`;
+                        
+                        msg.sources.forEach((src, idx) => {
+                            let domain = '';
+                            try { domain = new URL(src.url).hostname.replace('www.', ''); } catch(e){}
+                            sourcesHTML += `
+                            <a href="${src.url}" target="_blank" class="flex flex-col shrink-0 w-[200px] bg-[#1a1a1a] border border-gray-700/80 rounded-xl p-3 hover:border-gray-500 transition-colors shadow-sm !no-underline group">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0">
+                                    <span class="text-[11px] font-medium text-gray-400 truncate">${domain}</span>
+                                </div>
+                                <span class="text-[13px] font-medium text-gray-200 line-clamp-2 leading-snug group-hover:text-blue-400 transition-colors">${src.title || domain}</span>
+                            </a>`;
                         });
-                        sourcesHTML += `</div>`;
+                        sourcesHTML += `</div></div>`;
                         nodeData.contentNode.insertAdjacentHTML('beforeend', sourcesHTML);
                     }
                 }
@@ -1084,7 +1135,7 @@
             let fullAssistantText = "";
             let assistantImages = [];
             let assistantVideos = [];
-            let assistantSources = []; // NEW: Array to collect web sources
+            let assistantSources = [];
             let hasStartedStreaming = false;
 
             try {
@@ -1138,9 +1189,12 @@
                                             hasStartedStreaming = true;
                                         }
                                         
-                                        // Update text immediately without an artificial queue
                                         fullAssistantText += delta.content;
-                                        streamNode.contentNode.innerHTML = marked.parse(fullAssistantText);
+                                        
+                                        // Process live citations
+                                        const processedLiveText = preprocessCitations(fullAssistantText, assistantSources);
+                                        streamNode.contentNode.innerHTML = marked.parse(processedLiveText);
+                                        
                                         transformYouTubeLinks(streamNode.contentNode);
                                         
                                         if (autoScroll) chatBox.scrollTop = chatBox.scrollHeight;
@@ -1161,7 +1215,6 @@
                                             }
                                         });
                                     }
-                                    // Collect Web Sources live
                                     if (delta.sources && delta.sources.length > 0) {
                                         delta.sources.forEach(src => {
                                             if (!assistantSources.find(e => e.url === src.url)) {
@@ -1179,16 +1232,10 @@
                     fullAssistantText = msg.content || "";
                     assistantImages = msg.images || [];
                     assistantVideos = msg.videos || [];
-                    assistantSources = msg.sources || []; // NEW
+                    assistantSources = msg.sources || [];
                 }
 
-                messageHistory.push({ 
-                    role: "assistant", 
-                    content: fullAssistantText, 
-                    images: assistantImages, 
-                    videos: assistantVideos,
-                    sources: assistantSources // Push to message history state
-                });
+                messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages, videos: assistantVideos, sources: assistantSources });
                 saveChatState();
 
             } catch (error) {
@@ -1202,7 +1249,7 @@
                 sendBtn.disabled = messageInput.value.trim() === '' && selectedFiles.length === 0;
                 messageInput.focus();
                 
-                // Final re-render properly applies Monaco code editors
+                // Final re-render triggers the static overview carousel
                 renderChat();
             }
         }
