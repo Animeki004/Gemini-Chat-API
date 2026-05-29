@@ -282,29 +282,48 @@
         });
 
         // ==========================================
-        // CUSTOM MARKED.JS RENDERER FOR INLINE CITATIONS
+        // SMART NATIVE GEMINI CITATION RENDERER
         // ==========================================
         const renderer = new marked.Renderer();
         renderer.link = function(href, title, text) {
             let domain = '';
             try { domain = new URL(href).hostname.replace('www.', ''); } catch(e){}
             
-            // Determine if it's a numeric citation [1] or a full text link
-            const isCitation = /^\[?\d+\]?$/.test(text) || text.length <= 2;
-            const pxClass = isCitation ? 'px-1.5 rounded-full text-[10px] align-super' : 'px-1.5 rounded-md text-sm';
+            // Check if text is just a numeric citation marker [1]
+            const isCitationNum = /^\[?\d+\]?$/.test(text) || text.trim() === 'source';
             
-            return `<span class="relative group inline-block cursor-pointer mx-0.5 whitespace-nowrap">
-                <a href="${href}" target="_blank" class="text-blue-400 bg-blue-500/10 ${pxClass} py-0.5 hover:bg-blue-500/20 transition-colors no-underline font-medium border border-blue-500/20 hover:border-blue-500/40">${text}</a>
-                
-                <!-- Rich Hover Tooltip / Mini Window -->
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 w-64 bg-[#1e1e1e] border border-gray-700 rounded-xl p-3 shadow-2xl z-[100] pointer-events-none whitespace-normal text-left">
-                    <div class="flex items-center gap-2 mb-1.5">
-                        <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0">
-                        <span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span>
+            if (isCitationNum) {
+                // Renders just the clean grey pill if it's an isolated citation
+                return `<span class="relative group inline-flex items-center cursor-pointer mx-0.5 align-middle">
+                    <a href="${href}" target="_blank" class="flex items-center gap-1 bg-[#1a1a1a] hover:bg-[#252525] border border-gray-700/60 px-2 py-[2px] rounded-full transition-colors no-underline">
+                        <span class="text-[10px] font-medium text-gray-400 group-hover:text-gray-200">${domain}</span>
+                    </a>
+                    <!-- Tooltip Mini Window -->
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 w-64 bg-[#1e1e1e] border border-gray-700 rounded-xl p-3 shadow-2xl z-[100] pointer-events-none whitespace-normal text-left flex flex-col">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0">
+                            <span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span>
+                        </div>
+                        <div class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${title || domain}</div>
                     </div>
-                    <div class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug">${title || domain}</div>
-                </div>
-            </span>`;
+                </span>`;
+            } else {
+                // Renders highlighted native text PLUS the grey pill immediately next to it
+                return `<span class="relative group inline-flex items-baseline cursor-pointer mx-0.5 whitespace-normal">
+                    <a href="${href}" target="_blank" class="text-[#a8c7fa] bg-[#1a2b4c] hover:bg-[#203660] px-1.5 py-0.5 rounded transition-colors no-underline font-medium">${text}</a>
+                    <a href="${href}" target="_blank" class="ml-1 flex items-center bg-[#282a2c] hover:bg-[#343638] border border-gray-700/50 px-2 py-[2px] rounded-full transition-colors no-underline h-fit translate-y-[-1px]">
+                        <span class="text-[10px] font-medium text-[#c4c7c5] group-hover:text-white truncate max-w-[100px]">${domain}</span>
+                    </a>
+                    <!-- Tooltip Mini Window -->
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 w-64 bg-[#1e1e1e] border border-gray-700 rounded-xl p-3 shadow-2xl z-[100] pointer-events-none whitespace-normal text-left flex flex-col">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0">
+                            <span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span>
+                        </div>
+                        <div class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${title || text}</div>
+                    </div>
+                </span>`;
+            }
         };
         marked.use({ renderer });
 
@@ -324,8 +343,10 @@
             const links = container.querySelectorAll('a[href*="youtube.com/watch"], a[href*="youtu.be/"]');
             links.forEach(link => {
                 if (link.dataset.ytTransformed) return;
-                // If it's already part of our custom inline citation tooltip, skip it
-                if (link.closest('.group')) return;
+                
+                // If it's already caught inside our custom inline citation tooltip, target the outer span
+                const outerGroup = link.closest('.group');
+                const targetToReplace = outerGroup ? outerGroup : link;
                 
                 const url = link.href;
                 let videoId = null;
@@ -360,13 +381,13 @@
                         </div>
                     </div>`;
                     
-                    const parentLi = link.closest('li');
-                    if (parentLi && parentLi.textContent.trim() === link.textContent.trim()) {
+                    const parentLi = targetToReplace.closest('li');
+                    if (parentLi && parentLi.textContent.trim() === targetToReplace.textContent.trim()) {
                         parentLi.style.listStyle = 'none';
                         parentLi.style.marginLeft = '-1.5rem';
                         parentLi.style.marginBottom = '0.5rem';
                     }
-                    link.outerHTML = cardHTML;
+                    targetToReplace.outerHTML = cardHTML;
                 }
             });
         }
@@ -920,19 +941,34 @@
             }
         }
 
-        // Applies dynamic citations into the raw text by converting [1] to markdown links
+        // Applies dynamic citations into the raw text by intelligently grabbing preceding words 
+        // to highlight and converting [1] to rich markdown links
         function preprocessCitations(rawContent, sources) {
             if (!rawContent || !sources || sources.length === 0) return rawContent;
-            return rawContent.replace(/\[(\d+)\]/g, (match, num) => {
+            
+            // 1. Matches up to 4 preceding words + the [1] marker
+            let processed = rawContent.replace(/([a-zA-Z0-9_,.;\-*"']+(?:\s+[a-zA-Z0-9_,.;\-*"']+){0,4})\s*\[(\d+)\]/g, (match, precedingText, num) => {
                 const srcIdx = parseInt(num) - 1;
                 const src = sources[srcIdx];
                 if (src) {
-                    // Turn it into a markdown link with Title as tooltip
+                    const safeTitle = (src.title || '').replace(/"/g, '&quot;');
+                    return `[${precedingText}](${src.url} "${safeTitle}")`;
+                }
+                return match;
+            });
+            
+            // 2. Catch any leftover isolated [1] markers
+            processed = processed.replace(/\[(\d+)\]/g, (match, num) => {
+                const srcIdx = parseInt(num) - 1;
+                const src = sources[srcIdx];
+                if (src) {
                     const safeTitle = (src.title || '').replace(/"/g, '&quot;');
                     return `[${num}](${src.url} "${safeTitle}")`;
                 }
                 return match;
             });
+
+            return processed;
         }
 
         function renderChat() {
@@ -1028,15 +1064,15 @@
                                     <div class="relative w-full aspect-video bg-black cursor-pointer group-yt" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${vid.video_id}?autoplay=1\\' frameborder=\\'0\\' allow=\\'autoplay; encrypted-media\\' allowfullscreen></iframe>'">
                                         <img src="${vid.thumbnail}" class="w-full h-full object-cover opacity-80 group-yt-hover:opacity-100 transition-opacity">
                                         <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                            <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-lg group-yt-hover:scale-110 transition-transform">
+                                            <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.5)] group-yt-hover:scale-110 transition-transform">
                                                 <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="p-3">
-                                        <a href="${vid.url}" target="_blank" class="font-medium text-sm text-gray-100 line-clamp-2 hover:text-blue-400 transition-colors leading-snug">${vid.title}</a>
-                                        <p class="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                        <a href="${vid.url}" target="_blank" class="font-medium text-[14px] text-gray-100 line-clamp-2 hover:text-blue-400 transition-colors leading-snug !border-none">${vid.title}</a>
+                                        <p class="text-xs text-gray-400 mt-1 flex items-center gap-1.5 font-medium">
+                                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                                             ${vid.channel}
                                         </p>
                                     </div>
