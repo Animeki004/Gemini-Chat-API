@@ -47,6 +47,7 @@ class ChatCompletionRequest(BaseModel):
     presence_penalty: Optional[float] = 0.0
     frequency_penalty: Optional[float] = 0.0
     logit_bias: Optional[Dict[str, float]] = None
+    gemini_session: Optional[Dict[str, str]] = None  # ADDED: Targeting specific branch nodes
     user: Optional[str] = None
     seed: Optional[int] = None
     response_format: Optional[Dict[str, str]] = None
@@ -196,11 +197,18 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             model=requested_model
         )
         
+        
         session_data = db.get_api_key_session(api_key_token)
         if session_data and session_data["cid"]:
             bot.conversation_id = session_data["cid"]
             bot.response_id = session_data["rid"] or ""
             bot.choice_id = session_data["chid"] or ""
+
+        # BRANCHING LOGIC: Override with specific target node if regenerating an old branch
+        if request.gemini_session:
+            bot.conversation_id = request.gemini_session.get("conversation_id", bot.conversation_id)
+            bot.response_id = request.gemini_session.get("response_id", bot.response_id)
+            bot.choice_id = request.gemini_session.get("choice_id", bot.choice_id)    
 
         if request.stream:
             async def stream_generator():
@@ -259,7 +267,8 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                                     "object": "chat.completion.chunk",
                                     "created": int(time.time()),
                                     "model": request.model,
-                                    "choices": [{"index": 0, "delta": delta_data, "finish_reason": None}]
+                                    "choices": [{"index": 0, "delta": delta_data, "finish_reason": None}],
+                                    "gemini_session": {"conversation_id": cid, "response_id": rid, "choice_id": chid}
                                 }
                                 yield f"data: {json.dumps(chunk_json)}\n\n"
                                 
@@ -372,7 +381,8 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 "object": "chat.completion",
                 "created": int(time.time()),
                 "model": request.model,
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content, "images": safe_imgs, "videos": safe_vids}, "finish_reason": "stop"}]
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content, "images": safe_imgs, "videos": safe_vids}, "finish_reason": "stop"}],
+                "gemini_session": {"conversation_id": bot.conversation_id, "response_id": bot.response_id, "choice_id": bot.choice_id}
             }
 
     except HTTPException:
