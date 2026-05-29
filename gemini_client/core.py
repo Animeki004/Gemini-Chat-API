@@ -150,11 +150,11 @@ class Chatbot:
         )
 
     def ask(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None) -> dict: 
-        return self.loop.run_until_complete(self.async_chatbot.ask(message, files=files, attachment=attachment, image=image))
+        return self.loop.run_until_complete(self.async_chatbot.ask(message, files=files, attachment=attachment, image=image, regenerate=regenerate))
 
-    def ask_stream(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None):
+    def ask_stream(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None, regenerate: bool = False):
         """Synchronous wrapper to consume the async generator for streaming chunks."""
-        gen = self.async_chatbot.ask_stream(message, files=files, attachment=attachment, image=image)
+        gen = self.async_chatbot.ask_stream(message, files=files, attachment=attachment, image=image, regenerate=regenerate)
         while True:
             try:
                 yield self.loop.run_until_complete(gen.__anext__())
