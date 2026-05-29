@@ -432,9 +432,9 @@ class AsyncChatbot:
 
         # Safely inject the new attachments array
         if uploaded_files_array:
-            message_struct = [message, 0, None, uploaded_files_array, None, None, 2 if regenerate else 0]
+            message_struct = [message, 0, None, uploaded_files_array, None, None, 0]
         else:
-            message_struct = [message, 0, None, None, None, None, 2 if regenerate else 0]
+            message_struct = [message, 0, None, None, None, None, 0]
 
         request_payload = [
             message_struct,
@@ -442,6 +442,12 @@ class AsyncChatbot:
             conversation_state,
             self.PI9WOb
         ]
+        
+        if regenerate:
+            # Gemini expects the regenerate flag at index 72 of the main payload array
+            while len(request_payload) < 72:
+                request_payload.append(None)
+            request_payload.append(2)
 
         data = {
             "f.req": json.dumps(
@@ -638,9 +644,9 @@ class AsyncChatbot:
             conversation_state = ["", "", "", None, None, None, None, None, None, ""]
 
         if uploaded_files_array:
-            message_struct = [message, 0, None, uploaded_files_array, None, None, 2 if regenerate else 0]
+            message_struct = [message, 0, None, uploaded_files_array, None, None, 0]
         else:
-            message_struct = [message, 0, None, None, None, None, 2 if regenerate else 0]
+            message_struct = [message, 0, None, None, None, None, 0]
 
         request_payload = [
             message_struct,
@@ -648,6 +654,12 @@ class AsyncChatbot:
             conversation_state,
             self.PI9WOb
         ]
+        
+        if regenerate:
+            # Gemini expects the regenerate flag at index 72 of the main payload array
+            while len(request_payload) < 72:
+                request_payload.append(None)
+            request_payload.append(2)
 
         data = {
             "f.req": json.dumps(
