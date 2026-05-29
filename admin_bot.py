@@ -1,4 +1,5 @@
 import os
+from time import time
 import telebot
 import asyncio
 import json
@@ -531,8 +532,24 @@ if bot:
             return
             
         allowed_models = message.text.strip().lower()
-        new_key = db.generate_api_key(name, allowed_models, role="user")
-        bot.reply_to(message, f"✅ <b>Standard API Key Generated for:</b> {name}\n\n<code>{new_key}</code>\n\n<b>Allowed Models:</b> <code>{allowed_models}</code>", parse_mode="HTML")
+        msg = bot.reply_to(message, "⏳ <b>Set Expiry Time</b>\n\nEnter the number of hours until this key expires (e.g., <code>24</code> for one day, <code>1</code> for one hour).\n\n• Type <code>0</code> for a <b>Permanent</b> key.", parse_mode="HTML")
+        bot.register_next_step_handler(msg, process_newkey_expiry, name, allowed_models)
+
+    def process_newkey_expiry(message, name, allowed_models):
+        if not is_admin(message): return
+        if message.text.startswith('/'):
+            bot.reply_to(message, "❌ Key generation cancelled.", parse_mode="HTML")
+            return
+            
+        try:
+            expires_in_hours = float(message.text.strip())
+        except ValueError:
+            bot.reply_to(message, "❌ Invalid number. Key generation cancelled.", parse_mode="HTML")
+            return
+
+        new_key = db.generate_api_key(name, allowed_models, role="user", expires_in_hours=expires_in_hours)
+        expiry_text = "Permanent" if expires_in_hours <= 0 else f"{expires_in_hours} hours"
+        bot.reply_to(message, f"✅ <b>Standard API Key Generated for:</b> {name}\n\n<code>{new_key}</code>\n\n<b>Allowed Models:</b> <code>{allowed_models}</code>\n<b>Expiry:</b> <code>{expiry_text}</code>", parse_mode="HTML")
 
     @bot.message_handler(commands=['listkeys'])
     def list_keys(message):
@@ -542,8 +559,18 @@ if bot:
             bot.reply_to(message, "No keys found.")
             return
         text = "🔑 <b>API Keys:</b>\n\n"
-        for k, name, active, allowed_models, timeout, role, rpm in keys:
+        for k, name, active, allowed_models, timeout, role, rpm, expires_at in keys:
             status = "🟢 Active" if active else "🔴 Revoked"
+            
+            if active and expires_at > 0:
+                if time.time() > expires_at:
+                    status = "🔴 Expired"
+                else:
+                    hours_left = round((expires_at - time.time()) / 3600, 1)
+                    status += f" (Expires in {hours_left}h)"
+            elif active:
+                status += " (Permanent)"
+                
             role_icon = "🛡" if role == 'admin' else "👤"
             text += f"{role_icon} <b>{name}</b> ({role.upper()}) - {status}\n<code>{k}</code>\nModels: <code>{allowed_models}</code>\nSession Timeout: <code>{timeout} hours</code>\nRate Limit: <code>{rpm} RPM</code>\n\n"
         bot.reply_to(message, text, parse_mode="HTML")

@@ -53,6 +53,12 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+     # NEW: Expiry Field
+    try:
+        c.execute("ALTER TABLE api_keys ADD COLUMN expires_at REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
     # System status table for Extension Polling and Flood Control
     c.execute('''CREATE TABLE IF NOT EXISTS system_status
                  (id INTEGER PRIMARY KEY, needs_update INTEGER, last_alert REAL, global_req_per_min INTEGER)''')
@@ -103,19 +109,20 @@ def set_global_rate_limit(limit: int):
     conn.commit()
     conn.close()
 
-def generate_api_key(name, allowed_models="all", role="user"):
+def generate_api_key(name, allowed_models="all", role="user", expires_in_hours=0):
     key = "sk-" + uuid.uuid4().hex
     global_limit = get_global_rate_limit()
+    expires_at = time.time() + (expires_in_hours * 3600) if expires_in_hours > 0 else 0
     
     conn = _get_conn()
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours, role, req_per_min) VALUES (?, ?, 1, ?, ?, ?, ?, ?)", 
-                  (key, name, allowed_models, time.time(), 24.0, role, global_limit))
+        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours, role, req_per_min, expires_at) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)", 
+                  (key, name, allowed_models, time.time(), 24.0, role, global_limit, expires_at))
     except sqlite3.OperationalError:
         init_db() 
-        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours, role, req_per_min) VALUES (?, ?, 1, ?, ?, ?, ?, ?)", 
-                  (key, name, allowed_models, time.time(), 24.0, role, global_limit))
+        c.execute("INSERT INTO api_keys (key, name, active, allowed_models, last_used, timeout_hours, role, req_per_min, expires_at) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)", 
+                  (key, name, allowed_models, time.time(), 24.0, role, global_limit, expires_at))
     conn.commit()
     conn.close()
     return key
@@ -124,10 +131,10 @@ def list_api_keys():
     conn = _get_conn()
     c = conn.cursor()
     try:
-        c.execute("SELECT key, name, active, allowed_models, timeout_hours, role, req_per_min FROM api_keys")
+        c.execute("SELECT key, name, active, allowed_models, timeout_hours, role, req_per_min, expires_at FROM api_keys")
     except sqlite3.OperationalError:
         init_db()
-        c.execute("SELECT key, name, active, allowed_models, timeout_hours, role, req_per_min FROM api_keys")
+        c.execute("SELECT key, name, active, allowed_models, timeout_hours, role, req_per_min, expires_at FROM api_keys")
     rows = c.fetchall()
     conn.close()
     return rows
@@ -145,10 +152,10 @@ def get_api_key_details(key):
     conn = _get_conn()
     c = conn.cursor()
     try:
-        c.execute("SELECT active, allowed_models, role FROM api_keys WHERE key = ?", (key,))
+        c.execute("SELECT active, allowed_models, role, expires_at FROM api_keys WHERE key = ?", (key,))
     except sqlite3.OperationalError:
         init_db()
-        c.execute("SELECT active, allowed_models, role FROM api_keys WHERE key = ?", (key,))
+        c.execute("SELECT active, allowed_models, role, expires_at FROM api_keys WHERE key = ?", (key,))
     row = c.fetchone()
     conn.close()
     return row

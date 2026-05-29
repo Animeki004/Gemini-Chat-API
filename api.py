@@ -64,7 +64,12 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
     details = db.get_api_key_details(credentials.credentials)
     if not details or not details[0]: 
         raise HTTPException(status_code=401, detail="Invalid or deactivated API Key")
-        # ENFORCE RATE LIMITS
+        
+    # EXPIRE CHECK
+    if details[3] > 0 and time.time() > details[3]:
+        raise HTTPException(status_code=401, detail="API Key has expired")
+
+    # ENFORCE RATE LIMITS
     if not db.check_rate_limit(credentials.credentials):
         raise HTTPException(
             status_code=429, 
@@ -76,6 +81,11 @@ def verify_admin_key(credentials: HTTPAuthorizationCredentials = Depends(securit
     details = db.get_api_key_details(credentials.credentials)
     if not details or not details[0]: 
         raise HTTPException(status_code=401, detail="Invalid or deactivated API Key")
+        
+    # EXPIRE CHECK
+    if details[3] > 0 and time.time() > details[3]:
+        raise HTTPException(status_code=401, detail="API Key has expired")
+
     if details[2] != 'admin':
         raise HTTPException(status_code=403, detail="API Key lacks 'admin' permissions required for this endpoint")
     return {"key": credentials.credentials}
