@@ -445,7 +445,7 @@
     <!-- Main Application Logic -->
     <script>
         let messageHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
-        let selectedFiles = [];
+        let selectedFiles = []; // Upgraded to array for multiple files
         let isGenerating = false;
 
         // --- FULLSCREEN IMAGE PREVIEW HANDLERS ---
@@ -456,6 +456,7 @@
             
             img.src = url;
             
+            // Set download action safely
             downloadBtn.onclick = async () => {
                 try {
                     const response = await fetch(url);
@@ -486,7 +487,8 @@
             };
             
             modal.classList.remove('hidden');
-            modal.classList.add('flex');
+            modal.classList.add('flex'); // Fix centering by explicitly activating flexbox
+            // Trigger reflow to ensure transition works
             void modal.offsetWidth;
             
             modal.classList.remove('opacity-0');
@@ -504,11 +506,12 @@
             
             setTimeout(() => {
                 modal.classList.add('hidden');
-                modal.classList.remove('flex');
+                modal.classList.remove('flex'); // Clean up flexbox on close
                 img.src = '';
             }, 300);
         }
 
+        // Global Esc key listener for the modal
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 const modal = document.getElementById('fullscreenModal');
@@ -583,6 +586,7 @@
             mobileOverlay.classList.toggle('hidden');
         }
 
+        // --- DYNAMIC MULTI-FILE UPLOADER ---
         function handleFileUpload(event) {
             const files = Array.from(event.target.files);
             if (files.length === 0) return;
@@ -738,6 +742,7 @@
             }
         }
 
+        // --- NEW CHAT ACTION SYSTEM ---
         function extractTextFromMsg(msg) {
             if (typeof msg.content === 'string') return msg.content;
             if (Array.isArray(msg.content)) {
@@ -769,7 +774,7 @@
             if (messageHistory[messageHistory.length - 1].role === 'assistant') {
                 messageHistory.pop();
             }
-            await triggerGenerationStream(true);
+            await triggerGenerationStream();
         }
 
         function showEditUI(index) {
@@ -800,14 +805,6 @@
                 this.style.height = 'auto';
                 this.style.height = Math.min(this.scrollHeight, 300) + 'px';
             });
-            
-            textarea.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    submitEdit(index);
-                }
-            });
-            
             textarea.dispatchEvent(new Event('input'));
         }
 
@@ -829,7 +826,7 @@
             messageHistory = messageHistory.slice(0, index + 1);
             saveChatState();
             
-            await triggerGenerationStream(true);
+            await triggerGenerationStream();
         }
 
         function createBubbleNode(role, isLastAI = false, index = -1) {
@@ -897,6 +894,7 @@
                 return { wrapper, contentNode: bubble, actionBar };
             }
         }
+
         function renderChat() {
             chatBox.innerHTML = '';
             
@@ -1038,7 +1036,7 @@
             await triggerGenerationStream();
         }
 
-        async function triggerGenerationStream(isRegenerate = false) {
+        async function triggerGenerationStream() {
             const baseUrl = apiUrlInput.value.replace(/\/+$/, '');
             const apiKey = apiKeyInput.value.trim();
             const model = modelSelect.value;
@@ -1072,7 +1070,6 @@
             try {
                 const apiMessages = messageHistory.map(m => ({ role: m.role, content: m.content }));
 
-                // Modify the payload object:
                 const response = await fetch(`${baseUrl}/v1/chat/completions`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
@@ -1080,8 +1077,7 @@
                         model: model,
                         messages: apiMessages,
                         stream: useStream,
-                        temperature: 0.7,
-                        regenerate: isRegenerate
+                        temperature: 0.7
                     })
                 });
 
