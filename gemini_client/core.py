@@ -444,10 +444,16 @@ class AsyncChatbot:
         ]
         
         if regenerate:
-            # Gemini expects the regenerate flag at index 72 of the main payload array
-            while len(request_payload) < 72:
+            # Gemini strictly validates array length when parsing the regenerate flag
+            while len(request_payload) < 81:
                 request_payload.append(None)
-            request_payload.append(2)
+            
+            # Apply required structure flags for deep-indexed payloads
+            request_payload[67] = 0
+            request_payload[68] = 2
+            request_payload[72] = 2  # The true regenerate instruction
+            request_payload[79] = 6
+            request_payload[80] = 1
 
         data = {
             "f.req": json.dumps(
@@ -656,10 +662,16 @@ class AsyncChatbot:
         ]
         
         if regenerate:
-            # Gemini expects the regenerate flag at index 72 of the main payload array
-            while len(request_payload) < 72:
+            # Gemini strictly validates array length when parsing the regenerate flag
+            while len(request_payload) < 81:
                 request_payload.append(None)
-            request_payload.append(2)
+            
+            # Apply required structure flags for deep-indexed payloads
+            request_payload[67] = 0
+            request_payload[68] = 2
+            request_payload[72] = 2  # The true regenerate instruction
+            request_payload[79] = 6
+            request_payload[80] = 1
 
         data = {
             "f.req": json.dumps(
