@@ -254,7 +254,9 @@ if bot:
             "• /newkey [name] - Generate a Standard API key\n"
             "• /listkeys - View all API keys\n"
             "• /revoke &lt;key&gt; - Revoke an API key\n"
-            "• /setcookies - Update auth cookies\n\n"
+            "• /setcookies - Update auth cookies\n"
+            "• /ratelimit &lt;key&gt; &lt;rpm&gt; - Set specific API rate limit\n"
+            "• /globalratelimit &lt;rpm&gt; - Set default rate limit for new keys\n\n"
             "📡 <b>System Status</b>\n"
             "• /health - Check connection health"
         )
@@ -540,11 +542,55 @@ if bot:
             bot.reply_to(message, "No keys found.")
             return
         text = "🔑 <b>API Keys:</b>\n\n"
-        for k, name, active, allowed_models, timeout, role in keys:
+        for k, name, active, allowed_models, timeout, role, rpm in keys:
             status = "🟢 Active" if active else "🔴 Revoked"
             role_icon = "🛡" if role == 'admin' else "👤"
-            text += f"{role_icon} <b>{name}</b> ({role.upper()}) - {status}\n<code>{k}</code>\nModels: <code>{allowed_models}</code>\nSession Timeout: <code>{timeout} hours</code>\n\n"
+            text += f"{role_icon} <b>{name}</b> ({role.upper()}) - {status}\n<code>{k}</code>\nModels: <code>{allowed_models}</code>\nSession Timeout: <code>{timeout} hours</code>\nRate Limit: <code>{rpm} RPM</code>\n\n"
         bot.reply_to(message, text, parse_mode="HTML")
+
+    @bot.message_handler(commands=['ratelimit'])
+    def set_key_ratelimit(message):
+        if not is_admin(message): return
+        args = message.text.split()[1:]
+        
+        if len(args) < 2:
+            bot.reply_to(message, "Usage: <code>/ratelimit &lt;key_name&gt; &lt;requests_per_min&gt;</code>\nExample: <code>/ratelimit Default 30</code>", parse_mode="HTML")
+            return
+            
+        name = args[0]
+        try:
+            rpm = int(args[1])
+        except ValueError:
+            bot.reply_to(message, "❌ Requests per minute must be a valid number (e.g. 60).", parse_mode="HTML")
+            return
+            
+        success = db.set_key_rate_limit(name, rpm)
+        if success:
+            bot.reply_to(message, f"✅ Rate limit for <b>{name}</b> updated to <b>{rpm} requests per minute</b>.", parse_mode="HTML")
+        else:
+            bot.reply_to(message, f"❌ Key name <b>{name}</b> not found.", parse_mode="HTML")
+
+    @bot.message_handler(commands=['globalratelimit'])
+    def set_global_ratelimit(message):
+        if not is_admin(message): return
+        args = message.text.split()[1:]
+        
+        if len(args) < 1:
+            current = db.get_global_rate_limit()
+            bot.reply_to(message, f"Usage: <code>/globalratelimit &lt;requests_per_min&gt;</code>\nCurrent Global Limit: <b>{current} RPM</b>", parse_mode="HTML")
+            return
+            
+        try:
+            rpm = int(args[0])
+        except ValueError:
+            bot.reply_to(message, "❌ Requests per minute must be a valid integer.", parse_mode="HTML")
+            return
+            
+        db.set_global_rate_limit(rpm)
+        bot.reply_to(message, f"✅ Global default rate limit updated to <b>{rpm} requests per minute</b>. This will apply to all newly generated API keys.", parse_mode="HTML")
+
+    @bot.message_handler(commands=['settimeout'])
+
 
     @bot.message_handler(commands=['settimeout'])
     def set_key_timeout(message):
