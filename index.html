@@ -289,7 +289,7 @@
             let domain = '';
             try { domain = new URL(href).hostname.replace('www.', ''); } catch(e){}
             
-            // Check if text is just a numeric citation marker [1]
+            // Check if text is just a numeric citation marker [1] generated internally
             const isCitationNum = /^\[?\d+\]?$/.test(text) || text.trim() === 'source';
             
             if (isCitationNum) {
@@ -299,7 +299,7 @@
                         <span class="text-[10px] font-medium text-gray-400 group-hover:text-gray-200">${domain}</span>
                     </a>
                     <!-- Tooltip Mini Window -->
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 w-64 bg-[#1e1e1e] border border-gray-700 rounded-xl p-3 shadow-2xl z-[100] pointer-events-none whitespace-normal text-left flex flex-col">
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 w-64 bg-[#1e1e1e] border border-gray-700 rounded-xl p-3 shadow-2xl z-[100] pointer-events-none whitespace-normal text-left flex flex-col cursor-default">
                         <div class="flex items-center gap-2 mb-1.5">
                             <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0">
                             <span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span>
@@ -308,25 +308,81 @@
                     </div>
                 </span>`;
             } else {
-                // Renders highlighted native text PLUS the grey pill immediately next to it
-                return `<span class="relative group inline-flex items-baseline cursor-pointer mx-0.5 whitespace-normal">
-                    <a href="${href}" target="_blank" class="text-[#a8c7fa] bg-[#1a2b4c] hover:bg-[#203660] px-1.5 py-0.5 rounded transition-colors no-underline font-medium">${text}</a>
-                    <a href="${href}" target="_blank" class="ml-1 flex items-center bg-[#282a2c] hover:bg-[#343638] border border-gray-700/50 px-2 py-[2px] rounded-full transition-colors no-underline h-fit translate-y-[-1px]">
-                        <span class="text-[10px] font-medium text-[#c4c7c5] group-hover:text-white truncate max-w-[100px]">${domain}</span>
-                    </a>
-                    <!-- Tooltip Mini Window -->
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 w-64 bg-[#1e1e1e] border border-gray-700 rounded-xl p-3 shadow-2xl z-[100] pointer-events-none whitespace-normal text-left flex flex-col">
-                        <div class="flex items-center gap-2 mb-1.5">
-                            <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0">
-                            <span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span>
-                        </div>
-                        <div class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${title || text}</div>
-                    </div>
-                </span>`;
+                // Regular markdown links fallback
+                return `<a href="${href}" target="_blank" class="text-blue-400 hover:text-blue-300 transition-colors">${text}</a>`;
             }
         };
         marked.use({ renderer });
 
+        // =========================================================================
+        // NATIVE INLINE HIGHLIGHTING ALGORITHM (MATCHING GEMINI UI)
+        // =========================================================================
+        function embedInlineCitations(rawContent, sources) {
+            if (!rawContent || !sources || sources.length === 0) return rawContent;
+            
+            let processed = rawContent;
+            let unmatchedSources = [];
+            
+            sources.forEach(src => {
+                let matched = false;
+                let domain = '';
+                try { domain = new URL(src.url).hostname.replace('www.', ''); } catch(e){}
+                let safeTitle = (src.title || '').replace(/"/g, '&quot;');
+                
+                const tooltipHTML = `
+                    <a href="${src.url}" target="_blank" class="ml-1 inline-flex items-center bg-[#282a2c] hover:bg-[#343638] border border-gray-700/50 px-2 py-[2px] rounded-full transition-colors no-underline h-fit translate-y-[-1px] align-middle">
+                        <span class="text-[10px] font-medium text-[#c4c7c5] group-hover:text-white truncate max-w-[100px]">${domain}</span>
+                    </a>
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 w-64 bg-[#1e1e1e] border border-gray-700 rounded-xl p-3 shadow-2xl z-[100] pointer-events-none whitespace-normal text-left flex flex-col cursor-default">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0">
+                            <span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span>
+                        </div>
+                        <div class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${safeTitle}</div>
+                    </div>
+                `;
+
+                if (src.snippet && src.snippet.length > 3) {
+                    const cleanSnippet = src.snippet.replace(/[*_~`]/g, '').trim();
+                    
+                    // Try exact match with original markdown string provided by backend
+                    if (processed.includes(src.snippet)) {
+                        processed = processed.replace(src.snippet, `<span class="relative group inline-block cursor-pointer whitespace-normal break-words"><span class="text-[#a8c7fa] bg-[#1a2b4c] group-hover:bg-[#203660] px-1 py-0.5 rounded transition-colors font-medium">${src.snippet}</span>${tooltipHTML}</span>`);
+                        matched = true;
+                    } 
+                    // Try clean exact match
+                    else if (processed.includes(cleanSnippet)) {
+                        processed = processed.replace(cleanSnippet, `<span class="relative group inline-block cursor-pointer whitespace-normal break-words"><span class="text-[#a8c7fa] bg-[#1a2b4c] group-hover:bg-[#203660] px-1 py-0.5 rounded transition-colors font-medium">${cleanSnippet}</span>${tooltipHTML}</span>`);
+                        matched = true;
+                    }
+                }
+                
+                if (!matched) {
+                    unmatchedSources.push({src, tooltipHTML});
+                }
+            });
+            
+            // For sources with no snippet mapping, distribute them elegantly at the end of sentences
+            if (unmatchedSources.length > 0) {
+                // Split by period, exclamation mark, or question mark, preserving the delimiter
+                let sentences = processed.split(/([.!?](?:\s+|$))/);
+                if (sentences.length > 1) {
+                    unmatchedSources.forEach((item, idx) => {
+                        let targetIdx = (idx * 2);
+                        // Make sure we attach it to the text component, not the delimiter
+                        if (targetIdx >= sentences.length) targetIdx = sentences.length > 2 ? sentences.length - 2 : 0; 
+                        sentences[targetIdx] = `<span class="relative group inline-block cursor-pointer whitespace-normal break-words">${sentences[targetIdx]}${item.tooltipHTML}</span>`;
+                    });
+                    processed = sentences.join('');
+                } else {
+                    unmatchedSources.forEach(item => {
+                        processed += ` <span class="relative group inline-block cursor-pointer whitespace-normal break-words">${item.tooltipHTML}</span>`;
+                    });
+                }
+            }
+            
+            return processed;
+        }
 
         function fallbackCopyTextToClipboard(text) {
             const textArea = document.createElement("textarea");
@@ -941,36 +997,6 @@
             }
         }
 
-        // Applies dynamic citations into the raw text by intelligently grabbing preceding words 
-        // to highlight and converting [1] to rich markdown links
-        function preprocessCitations(rawContent, sources) {
-            if (!rawContent || !sources || sources.length === 0) return rawContent;
-            
-            // 1. Matches up to 4 preceding words + the [1] marker
-            let processed = rawContent.replace(/([a-zA-Z0-9_,.;\-*"']+(?:\s+[a-zA-Z0-9_,.;\-*"']+){0,4})\s*\[(\d+)\]/g, (match, precedingText, num) => {
-                const srcIdx = parseInt(num) - 1;
-                const src = sources[srcIdx];
-                if (src) {
-                    const safeTitle = (src.title || '').replace(/"/g, '&quot;');
-                    return `[${precedingText}](${src.url} "${safeTitle}")`;
-                }
-                return match;
-            });
-            
-            // 2. Catch any leftover isolated [1] markers
-            processed = processed.replace(/\[(\d+)\]/g, (match, num) => {
-                const srcIdx = parseInt(num) - 1;
-                const src = sources[srcIdx];
-                if (src) {
-                    const safeTitle = (src.title || '').replace(/"/g, '&quot;');
-                    return `[${num}](${src.url} "${safeTitle}")`;
-                }
-                return match;
-            });
-
-            return processed;
-        }
-
         function renderChat() {
             chatBox.innerHTML = '';
             
@@ -1016,8 +1042,8 @@
                         nodeData.contentNode.textContent = msg.content;
                     }
                 } else {
-                    // Pre-process citations if sources exist
-                    const processedText = preprocessCitations(msg.content || '', msg.sources);
+                    // Pre-process citations dynamically to perfectly embed and highlight text natively
+                    const processedText = embedInlineCitations(msg.content || '', msg.sources);
                     nodeData.contentNode.innerHTML = marked.parse(processedText);
                     
                     transformYouTubeLinks(nodeData.contentNode);
@@ -1081,33 +1107,6 @@
                         });
                         videoHTML += `</div>`;
                         nodeData.contentNode.insertAdjacentHTML('beforeend', videoHTML);
-                    }
-                    
-                    // --- BEAUTIFUL SOURCES OVERVIEW CAROUSEL ---
-                    if (msg.sources && msg.sources.length > 0) {
-                        let sourcesHTML = `<div class="mt-5 pt-3 border-t border-gray-800/60 w-full overflow-hidden">
-                            <div class="flex items-center gap-2 mb-3">
-                                <div class="w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center">
-                                    <svg class="w-3 h-3 text-blue-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                                </div>
-                                <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Sources</span>
-                            </div>
-                            <div class="flex gap-3 overflow-x-auto pb-2 scroll-smooth scrollbar-hide">`;
-                        
-                        msg.sources.forEach((src, idx) => {
-                            let domain = '';
-                            try { domain = new URL(src.url).hostname.replace('www.', ''); } catch(e){}
-                            sourcesHTML += `
-                            <a href="${src.url}" target="_blank" class="flex flex-col shrink-0 w-[200px] bg-[#1a1a1a] border border-gray-700/80 rounded-xl p-3 hover:border-gray-500 transition-colors shadow-sm !no-underline group">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0">
-                                    <span class="text-[11px] font-medium text-gray-400 truncate">${domain}</span>
-                                </div>
-                                <span class="text-[13px] font-medium text-gray-200 line-clamp-2 leading-snug group-hover:text-blue-400 transition-colors">${src.title || domain}</span>
-                            </a>`;
-                        });
-                        sourcesHTML += `</div></div>`;
-                        nodeData.contentNode.insertAdjacentHTML('beforeend', sourcesHTML);
                     }
                 }
                 
@@ -1227,8 +1226,8 @@
                                         
                                         fullAssistantText += delta.content;
                                         
-                                        // Process live citations
-                                        const processedLiveText = preprocessCitations(fullAssistantText, assistantSources);
+                                        // Process live citations directly into streaming text
+                                        const processedLiveText = embedInlineCitations(fullAssistantText, assistantSources);
                                         streamNode.contentNode.innerHTML = marked.parse(processedLiveText);
                                         
                                         transformYouTubeLinks(streamNode.contentNode);
@@ -1285,7 +1284,7 @@
                 sendBtn.disabled = messageInput.value.trim() === '' && selectedFiles.length === 0;
                 messageInput.focus();
                 
-                // Final re-render triggers the static overview carousel
+                // Final re-render safely locks everything into place
                 renderChat();
             }
         }

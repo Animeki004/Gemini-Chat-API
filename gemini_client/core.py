@@ -552,14 +552,31 @@ class AsyncChatbot:
                                         if seen is None: seen = set()
                                         
                                         if isinstance(obj, list):
-                                            # Signature of a web link in Gemini payload is typically [ "http...", "Title", ... ]
-                                            if len(obj) >= 2 and isinstance(obj[0], str) and isinstance(obj[1], str):
+                                            # Signature of a web link with internal text mapping
+                                            if len(obj) >= 5 and isinstance(obj[0], str) and obj[0].startswith("http"):
+                                                url = obj[0]
+                                                if not any(x in url for x in ["googleusercontent.com", "youtube.com", "youtu.be", "gstatic.com"]):
+                                                    title = obj[3] if isinstance(obj[3], str) else url
+                                                    snippet = ""
+                                                    try:
+                                                        if isinstance(obj[4], list) and len(obj[4]) > 0 and isinstance(obj[4][0], list) and len(obj[4][0]) > 0 and isinstance(obj[4][0][0], str):
+                                                            snippet = obj[4][0][0]
+                                                    except:
+                                                        pass
+                                                        
+                                                    if url not in seen or snippet:
+                                                        seen.add(url)
+                                                        srcs.append({"url": url, "title": title, "snippet": snippet})
+                                            
+                                            # Signature of a simple web link fallback
+                                            elif len(obj) >= 2 and isinstance(obj[0], str) and isinstance(obj[1], str):
                                                 url = obj[0]
                                                 title = obj[1]
                                                 if url.startswith("http") and not any(x in url for x in ["googleusercontent.com", "youtube.com", "youtu.be", "gstatic.com"]):
                                                     if url not in seen:
                                                         seen.add(url)
-                                                        srcs.append({"url": url, "title": title if title else url})
+                                                        srcs.append({"url": url, "title": title if title else url, "snippet": ""})
+                                                        
                                             for item in obj:
                                                 extract_web_sources(item, srcs, seen)
                                         elif isinstance(obj, dict):
@@ -811,14 +828,33 @@ class AsyncChatbot:
                 def extract_web_sources(obj, srcs=None, seen=None):
                     if srcs is None: srcs = []
                     if seen is None: seen = set()
+                    
                     if isinstance(obj, list):
-                        if len(obj) >= 2 and isinstance(obj[0], str) and isinstance(obj[1], str):
+                        # Signature of a web link with text mapping
+                        if len(obj) >= 5 and isinstance(obj[0], str) and obj[0].startswith("http"):
+                            url = obj[0]
+                            if not any(x in url for x in ["googleusercontent.com", "youtube.com", "youtu.be", "gstatic.com"]):
+                                title = obj[3] if isinstance(obj[3], str) else url
+                                snippet = ""
+                                try:
+                                    if isinstance(obj[4], list) and len(obj[4]) > 0 and isinstance(obj[4][0], list) and len(obj[4][0]) > 0 and isinstance(obj[4][0][0], str):
+                                        snippet = obj[4][0][0]
+                                except:
+                                    pass
+                                    
+                                if url not in seen or snippet:
+                                    seen.add(url)
+                                    srcs.append({"url": url, "title": title, "snippet": snippet})
+                        
+                        # Signature of a simple web link fallback
+                        elif len(obj) >= 2 and isinstance(obj[0], str) and isinstance(obj[1], str):
                             url = obj[0]
                             title = obj[1]
                             if url.startswith("http") and not any(x in url for x in ["googleusercontent.com", "youtube.com", "youtu.be", "gstatic.com"]):
                                 if url not in seen:
                                     seen.add(url)
-                                    srcs.append({"url": url, "title": title if title else url})
+                                    srcs.append({"url": url, "title": title if title else url, "snippet": ""})
+                                    
                         for item in obj:
                             extract_web_sources(item, srcs, seen)
                     elif isinstance(obj, dict):
