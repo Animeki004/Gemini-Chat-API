@@ -288,6 +288,56 @@
             document.body.removeChild(textArea);
         }
 
+        function transformYouTubeLinks(container) {
+            const links = container.querySelectorAll('a[href*="youtube.com/watch"], a[href*="youtu.be/"]');
+            links.forEach(link => {
+                if (link.dataset.ytTransformed) return;
+                
+                const url = link.href;
+                let videoId = null;
+                try {
+                    if (url.includes('youtube.com/watch')) {
+                        videoId = new URL(url).searchParams.get('v');
+                    } else if (url.includes('youtu.be/')) {
+                        videoId = url.split('youtu.be/')[1].split('?')[0];
+                    }
+                } catch(e) {}
+
+                if (videoId) {
+                    link.dataset.ytTransformed = 'true';
+                    const title = link.textContent || 'YouTube Video';
+                    
+                    const cardHTML = `
+                    <div class="mt-3 mb-4 flex flex-col bg-gray-900 border border-gray-700 rounded-xl overflow-hidden shadow-lg hover:border-gray-500 transition-colors w-full max-w-md">
+                        <div class="relative w-full aspect-video bg-black cursor-pointer group" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${videoId}?autoplay=1\\' frameborder=\\'0\\' allow=\\'autoplay; encrypted-media\\' allowfullscreen></iframe>'">
+                            <img src="https://img.youtube.com/vi/${videoId}/maxresdefault.jpg" onerror="this.src='https://img.youtube.com/vi/${videoId}/hqdefault.jpg'" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.5)] group-hover:scale-110 transition-transform">
+                                    <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                </div>
+                            </div>
+                            <div class="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/80 px-2 py-1 rounded text-xs font-medium text-white backdrop-blur-sm pointer-events-none">
+                                <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+                                YouTube
+                            </div>
+                        </div>
+                        <div class="p-3">
+                            <a href="${url}" target="_blank" class="font-medium text-[14px] text-gray-100 line-clamp-2 hover:text-blue-400 transition-colors leading-snug !border-none">${title}</a>
+                        </div>
+                    </div>`;
+                    
+                    const parentLi = link.closest('li');
+                    // Hide bullet points if the list item ONLY contains the video link
+                    if (parentLi && parentLi.textContent.trim() === link.textContent.trim()) {
+                        parentLi.style.listStyle = 'none';
+                        parentLi.style.marginLeft = '-1.5rem';
+                        parentLi.style.marginBottom = '0.5rem';
+                    }
+                    link.outerHTML = cardHTML;
+                }
+            });
+        }
+
         function applyMonacoEditors(container) {
             if (!window.monaco || !monacoThemeDefined) return;
             
@@ -891,6 +941,7 @@
                     }
                 } else {
                     nodeData.contentNode.innerHTML = marked.parse(msg.content || '');
+                    transformYouTubeLinks(nodeData.contentNode);
                     applyMonacoEditors(nodeData.contentNode);
                     
                     if (msg.images && msg.images.length > 0) {
@@ -1070,6 +1121,7 @@
                                         // Update text immediately without an artificial queue
                                         fullAssistantText += delta.content;
                                         streamNode.contentNode.innerHTML = marked.parse(fullAssistantText);
+                                        transformYouTubeLinks(streamNode.contentNode);
                                         
                                         if (autoScroll) chatBox.scrollTop = chatBox.scrollHeight;
                                     }
