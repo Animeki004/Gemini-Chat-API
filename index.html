@@ -470,6 +470,7 @@
         let selectedFiles = []; 
         let isGenerating = false;
         let isRegeneratingFlag = false; // Flag for Smart Regeneration Prompt Injection
+        let isEditingFlag = false; // Flag for Smart Edit Prompt Injection
 
         // --- FULLSCREEN IMAGE PREVIEW HANDLERS ---
         function openImageModal(url, title) {
@@ -841,6 +842,7 @@
             messageHistory = messageHistory.slice(0, index + 1);
             saveChatState();
             
+            isEditingFlag = true;
             await triggerGenerationStream();
         }
 
@@ -1119,6 +1121,8 @@
                         
                         if (isRegeneratingFlag) {
                             injectedPrompt += `[SYSTEM NOTE]\nThe user requested to REGENERATE the previous response. Please provide a new, improved, or alternative answer.\n[/SYSTEM NOTE]\n\n`;
+                        } else if (isEditingFlag) {
+                            injectedPrompt += `[SYSTEM NOTE]\nThe user has EDITED their previous message to branch off the conversation. Treat this as a new direction and provide a fresh, updated response based on this new request.\n[/SYSTEM NOTE]\n\n`;
                         }
 
                         if (injectedPrompt) {
@@ -1237,6 +1241,7 @@
             } finally {
                 isGenerating = false;
                 isRegeneratingFlag = false; // Reset flag
+                isEditingFlag = false; // Reset flag
                 sendBtn.disabled = messageInput.value.trim() === '' && selectedFiles.length === 0;
                 messageInput.focus();
                 
