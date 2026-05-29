@@ -1,5 +1,5 @@
 import os
-from time import time
+import time
 import telebot
 import asyncio
 import json
