@@ -769,26 +769,13 @@
             messageInput.focus();
         }
 
-        async function regenerateResponse(index) {
-            if (isGenerating || index < 1) return;
-            
-            const userMsgIndex = index - 1;
-            let targetSession = null;
-            
-            // Retrieve the state of the tree *before* this user prompt was sent
-            if (userMsgIndex >= 1 && messageHistory[userMsgIndex - 1].gemini_session) {
-                targetSession = messageHistory[userMsgIndex - 1].gemini_session;
-            } else {
-                // If regenerating the very first message, retain CID if possible but clear response pointers
-                const currentCid = messageHistory[1]?.gemini_session?.conversation_id || "";
-                targetSession = { conversation_id: currentCid, response_id: "", choice_id: "" };
+        // Replace the entire function with:
+        async function regenerateResponse() {
+            if (isGenerating || messageHistory.length < 2) return;
+            if (messageHistory[messageHistory.length - 1].role === 'assistant') {
+                messageHistory.pop();
             }
-            
-            // Slice off the bad timeline
-            messageHistory = messageHistory.slice(0, userMsgIndex + 1);
-            saveChatState();
-            
-            await triggerGenerationStream(targetSession);
+            await triggerGenerationStream(true);
         }
 
         function showEditUI(index) {
@@ -892,8 +879,10 @@
                 let actionsHTML = `
                     <button onclick="copyMessageIndex(${index}, this)" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors" title="Copy"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>
                     <button onclick="replyToMessage(${index})" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors ml-1" title="Reply"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg></button>
-                    <button onclick="regenerateResponse(${index})" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors ml-1" title="Regenerate"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>
                 `;
+                if (isLastAI) {
+                    actionsHTML += `<button onclick="regenerateResponse()" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors ml-1" title="Regenerate"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>`;
+                }
                 actionBar.innerHTML = actionsHTML;
 
                 contentCol.appendChild(bubble);
@@ -1048,7 +1037,7 @@
             await triggerGenerationStream();
         }
 
-        async function triggerGenerationStream(targetSession = null) {
+        async function triggerGenerationStream() {
             const baseUrl = apiUrlInput.value.replace(/\/+$/, '');
             const apiKey = apiKeyInput.value.trim();
             const model = modelSelect.value;
@@ -1078,11 +1067,11 @@
             let assistantImages = [];
             let assistantVideos = [];
             let hasStartedStreaming = false;
-            let currentGeminiSession = null;
 
             try {
                 const apiMessages = messageHistory.map(m => ({ role: m.role, content: m.content }));
 
+                // Modify the payload object:
                 const response = await fetch(`${baseUrl}/v1/chat/completions`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
@@ -1091,7 +1080,7 @@
                         messages: apiMessages,
                         stream: useStream,
                         temperature: 0.7,
-                        gemini_session: targetSession
+                        regenerate: isRegenerate
                     })
                 });
 
@@ -1155,11 +1144,7 @@
                                             }
                                         });
                                     }
-                                    
-                                    if (dataObj.gemini_session) {
-                                        currentGeminiSession = dataObj.gemini_session;
-                                    }
-                                } catch (e) { }
+                                } catch (e) { } 
                             }
                         }
                     }
@@ -1169,10 +1154,9 @@
                     fullAssistantText = msg.content || "";
                     assistantImages = msg.images || [];
                     assistantVideos = msg.videos || [];
-                    currentGeminiSession = data.gemini_session || null;
                 }
 
-                messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages, videos: assistantVideos, gemini_session: currentGeminiSession });
+                messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages, videos: assistantVideos });
                 saveChatState();
 
             } catch (error) {

@@ -588,7 +588,7 @@ class AsyncChatbot:
         except Exception as e:
             yield {"content": f"Streaming error: {e}", "chunk": f"Streaming error: {e}", "error": True}
 
-    async def ask(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None) -> dict:
+    async def ask(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None, regenerate: bool = False) -> dict:
         if self.SNlM0e is None:
             raise RuntimeError("AsyncChatbot not properly initialized. Call AsyncChatbot.create()")
 
@@ -640,7 +640,7 @@ class AsyncChatbot:
         if uploaded_files_array:
             message_struct = [message, 0, None, uploaded_files_array, None, None, 0]
         else:
-            message_struct = [message, 0, None, None, None, None, 0]
+            message_struct = [message, 0, None, None, None, None, 2 if regenerate else 0]
 
         request_payload = [
             message_struct,

@@ -47,12 +47,12 @@ class ChatCompletionRequest(BaseModel):
     presence_penalty: Optional[float] = 0.0
     frequency_penalty: Optional[float] = 0.0
     logit_bias: Optional[Dict[str, float]] = None
-    gemini_session: Optional[Dict[str, str]] = None  # ADDED: Targeting specific branch nodes
     user: Optional[str] = None
     seed: Optional[int] = None
     response_format: Optional[Dict[str, str]] = None
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+    regenerate: Optional[bool] = False
 
     class Config:
         extra = "ignore"  # Strongly prevents 422 errors
@@ -197,18 +197,11 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
             model=requested_model
         )
         
-        
         session_data = db.get_api_key_session(api_key_token)
         if session_data and session_data["cid"]:
             bot.conversation_id = session_data["cid"]
             bot.response_id = session_data["rid"] or ""
             bot.choice_id = session_data["chid"] or ""
-
-        # BRANCHING LOGIC: Override with specific target node if regenerating an old branch
-        if request.gemini_session:
-            bot.conversation_id = request.gemini_session.get("conversation_id", bot.conversation_id)
-            bot.response_id = request.gemini_session.get("response_id", bot.response_id)
-            bot.choice_id = request.gemini_session.get("choice_id", bot.choice_id)    
 
         if request.stream:
             async def stream_generator():
@@ -217,7 +210,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                     has_content = False
                     
                     try:
-                        async for result in bot.ask_stream(prompt, files=files_to_upload):
+                        async for result in bot.ask_stream(prompt, files=files_to_upload, regenerate=request.regenerate):
                             # Catch potential API/cookie errors returned elegantly during stream
                             if result.get("error"):
                                 # RESET SESSION: Clear invalid conversation bindings on error
@@ -267,8 +260,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                                     "object": "chat.completion.chunk",
                                     "created": int(time.time()),
                                     "model": request.model,
-                                    "choices": [{"index": 0, "delta": delta_data, "finish_reason": None}],
-                                    "gemini_session": {"conversation_id": cid, "response_id": rid, "choice_id": chid}
+                                    "choices": [{"index": 0, "delta": delta_data, "finish_reason": None}]
                                 }
                                 yield f"data: {json.dumps(chunk_json)}\n\n"
                                 
@@ -328,7 +320,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
 
         else:
             # STANDARD SYNCHRONOUS REQUEST (Non-Streaming)
-            response = await bot.ask(prompt, files=files_to_upload)
+            response = await bot.ask(prompt, files=files_to_upload, regenerate=request.regenerate)
             
             # Clean up temporary uploaded files
             for p in temp_files:
@@ -381,8 +373,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 "object": "chat.completion",
                 "created": int(time.time()),
                 "model": request.model,
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content, "images": safe_imgs, "videos": safe_vids}, "finish_reason": "stop"}],
-                "gemini_session": {"conversation_id": bot.conversation_id, "response_id": bot.response_id, "choice_id": bot.choice_id}
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content, "images": safe_imgs, "videos": safe_vids}, "finish_reason": "stop"}]
             }
 
     except HTTPException:
