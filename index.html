@@ -141,15 +141,6 @@
                 <input type="password" id="apiKey" placeholder="sk-..." class="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-gray-500 text-sm text-gray-200 placeholder-gray-500 transition-colors">
             </div>
 
-            <!-- Enhanced: System Prompt Configuration -->
-            <div class="space-y-1.5 pt-2">
-                <label class="text-xs text-gray-400 pl-1 flex justify-between items-center">
-                    System Prompt
-                    <span class="text-[10px] text-gray-500 font-normal border border-gray-700 px-1.5 rounded">Injected</span>
-                </label>
-                <textarea id="systemPrompt" rows="3" placeholder="You are a helpful AI assistant..." class="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-gray-500 text-sm text-gray-200 placeholder-gray-500 transition-colors resize-y min-h-[80px]"></textarea>
-            </div>
-
             <!-- Stream Toggle Section -->
             <div class="space-y-1.5 pt-4 border-t border-gray-800">
                 <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-300 pl-1 group">
@@ -297,7 +288,6 @@
             document.body.removeChild(textArea);
         }
 
-        // --- UPGRADED YOUTUBE RENDERER ---
         function transformYouTubeLinks(container) {
             const links = container.querySelectorAll('a[href*="youtube.com/watch"], a[href*="youtu.be/"]');
             links.forEach(link => {
@@ -315,41 +305,24 @@
 
                 if (videoId) {
                     link.dataset.ytTransformed = 'true';
-                    let fallbackTitle = link.textContent !== url ? link.textContent : 'Loading YouTube Video...';
-                    const uniqueId = 'yt-' + Math.random().toString(36).substr(2, 9);
+                    const title = link.textContent || 'YouTube Video';
                     
                     const cardHTML = `
-                    <div id="${uniqueId}" class="mt-3 mb-4 flex flex-col bg-[#161616] border border-gray-700/60 rounded-xl overflow-hidden shadow-sm hover:border-gray-500 transition-colors w-full max-w-[340px]">
-                        
-                        <!-- Sleek Compact Header -->
-                        <div class="flex justify-between items-center px-3 py-2 bg-[#1c1c1c] border-b border-gray-800">
-                            <div class="flex items-center gap-1.5 text-gray-200 font-semibold text-[11px] tracking-wide">
+                    <div class="mt-3 mb-4 flex flex-col bg-gray-900 border border-gray-700 rounded-xl overflow-hidden shadow-lg hover:border-gray-500 transition-colors w-full max-w-md">
+                        <div class="relative w-full aspect-video bg-black cursor-pointer group" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${videoId}?autoplay=1\\' frameborder=\\'0\\' allow=\\'autoplay; encrypted-media\\' allowfullscreen></iframe>'">
+                            <img src="https://img.youtube.com/vi/${videoId}/maxresdefault.jpg" onerror="this.src='https://img.youtube.com/vi/${videoId}/hqdefault.jpg'" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.5)] group-hover:scale-110 transition-transform">
+                                    <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                </div>
+                            </div>
+                            <div class="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/80 px-2 py-1 rounded text-xs font-medium text-white backdrop-blur-sm pointer-events-none">
                                 <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
                                 YouTube
                             </div>
-                            <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-gray-400 hover:text-white flex items-center gap-1 font-medium bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded transition-colors !border-none !no-underline shadow-sm" title="Open directly in YouTube">
-                                Open ↗
-                            </a>
                         </div>
-
-                        <!-- Video Area -->
-                        <div class="relative w-full aspect-video bg-black cursor-pointer group" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${videoId}?autoplay=1\\' frameborder=\\'0\\' allow=\\'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\\' allowfullscreen></iframe>'">
-                            <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
-                            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div class="w-10 h-10 bg-red-600/90 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.4)] group-hover:scale-110 transition-transform">
-                                    <svg class="w-5 h-5 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Footer / Metadata Area -->
-                        <div class="p-3 bg-[#161616] flex flex-col gap-1.5">
-                            <a href="${url}" target="_blank" rel="noopener noreferrer" class="yt-title font-semibold text-[13px] text-gray-100 line-clamp-2 hover:text-blue-400 transition-colors leading-snug !border-none !no-underline">${fallbackTitle}</a>
-                            <div class="yt-author text-[11px] text-gray-400 font-medium flex items-center gap-1.5 hidden">
-                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                                <span></span>
-                            </div>
-                            <p class="yt-desc text-[11px] text-gray-500 line-clamp-2 leading-relaxed hidden"></p>
+                        <div class="p-3">
+                            <a href="${url}" target="_blank" class="font-medium text-[14px] text-gray-100 line-clamp-2 hover:text-blue-400 transition-colors leading-snug !border-none">${title}</a>
                         </div>
                     </div>`;
                     
@@ -360,51 +333,7 @@
                         parentLi.style.marginLeft = '-1.5rem';
                         parentLi.style.marginBottom = '0.5rem';
                     }
-                    
-                    const template = document.createElement('template');
-                    template.innerHTML = cardHTML.trim();
-                    const cardNode = template.content.firstChild;
-                    link.parentNode.replaceChild(cardNode, link);
-
-                    // Dynamic Metadata Fetching (Title + Desc + Channel)
-                    const fetchFallbackMetadata = () => {
-                        fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`)
-                            .then(res => res.json())
-                            .then(data => {
-                                if (data && data.title) {
-                                    const titleEl = document.getElementById(uniqueId).querySelector('.yt-title');
-                                    const authorEl = document.getElementById(uniqueId).querySelector('.yt-author');
-                                    titleEl.textContent = data.title;
-                                    if (data.author_name) {
-                                        authorEl.classList.remove('hidden');
-                                        authorEl.querySelector('span').textContent = data.author_name;
-                                    }
-                                }
-                            }).catch(e => {});
-                    };
-
-                    fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}`)
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data && data.status === 'success' && data.data) {
-                                const titleEl = document.getElementById(uniqueId).querySelector('.yt-title');
-                                const authorEl = document.getElementById(uniqueId).querySelector('.yt-author');
-                                const descEl = document.getElementById(uniqueId).querySelector('.yt-desc');
-                                
-                                if(data.data.title) titleEl.textContent = data.data.title;
-                                if(data.data.publisher || data.data.author) {
-                                    authorEl.classList.remove('hidden');
-                                    authorEl.querySelector('span').textContent = data.data.publisher || data.data.author;
-                                }
-                                if(data.data.description) {
-                                    descEl.classList.remove('hidden');
-                                    descEl.textContent = data.data.description;
-                                }
-                            } else {
-                                fetchFallbackMetadata();
-                            }
-                        })
-                        .catch(fetchFallbackMetadata);
+                    link.outerHTML = cardHTML;
                 }
             });
         }
@@ -516,10 +445,8 @@
     <!-- Main Application Logic -->
     <script>
         let messageHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
-        let selectedFiles = []; 
+        let selectedFiles = []; // Upgraded to array for multiple files
         let isGenerating = false;
-        let isRegeneratingFlag = false; // Flag for Smart Regeneration Prompt Injection
-        let isEditingFlag = false; // Flag for Smart Edit Prompt Injection
 
         // --- FULLSCREEN IMAGE PREVIEW HANDLERS ---
         function openImageModal(url, title) {
@@ -529,6 +456,7 @@
             
             img.src = url;
             
+            // Set download action safely
             downloadBtn.onclick = async () => {
                 try {
                     const response = await fetch(url);
@@ -559,7 +487,8 @@
             };
             
             modal.classList.remove('hidden');
-            modal.classList.add('flex');
+            modal.classList.add('flex'); // Fix centering by explicitly activating flexbox
+            // Trigger reflow to ensure transition works
             void modal.offsetWidth;
             
             modal.classList.remove('opacity-0');
@@ -577,11 +506,12 @@
             
             setTimeout(() => {
                 modal.classList.add('hidden');
-                modal.classList.remove('flex'); 
+                modal.classList.remove('flex'); // Clean up flexbox on close
                 img.src = '';
             }, 300);
         }
 
+        // Global Esc key listener for the modal
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 const modal = document.getElementById('fullscreenModal');
@@ -611,7 +541,6 @@
 
         const apiUrlInput = document.getElementById('apiUrl');
         const apiKeyInput = document.getElementById('apiKey');
-        const systemPromptInput = document.getElementById('systemPrompt');
         const modelSelect = document.getElementById('modelSelect');
         const streamToggle = document.getElementById('streamToggle');
         const chatBox = document.getElementById('chatBox');
@@ -624,7 +553,6 @@
         window.onload = () => {
             apiUrlInput.value = localStorage.getItem('apiUrl') || 'http://localhost:8000';
             apiKeyInput.value = localStorage.getItem('apiKey') || '';
-            systemPromptInput.value = localStorage.getItem('systemPrompt') || '';
             streamToggle.checked = localStorage.getItem('streamEnabled') !== 'false';
             
             const cachedModels = JSON.parse(localStorage.getItem('cachedModels')) || [];
@@ -636,7 +564,6 @@
 
         apiUrlInput.addEventListener('input', () => localStorage.setItem('apiUrl', apiUrlInput.value));
         apiKeyInput.addEventListener('input', () => localStorage.setItem('apiKey', apiKeyInput.value));
-        systemPromptInput.addEventListener('input', () => localStorage.setItem('systemPrompt', systemPromptInput.value));
         modelSelect.addEventListener('change', () => localStorage.setItem('selectedModel', modelSelect.value));
         streamToggle.addEventListener('change', () => localStorage.setItem('streamEnabled', streamToggle.checked));
 
@@ -684,12 +611,20 @@
                             canvas.width = width; canvas.height = height;
                             ctx.drawImage(img, 0, 0, width, height);
 
-                            selectedFiles.push({ name: file.name, url: canvas.toDataURL('image/jpeg', 0.85), isImage: true });
+                            selectedFiles.push({
+                                name: file.name,
+                                url: canvas.toDataURL('image/jpeg', 0.85),
+                                isImage: true
+                            });
                             renderAttachmentsPreview();
                         };
                         img.src = dataUrl;
                     } else {
-                        selectedFiles.push({ name: file.name, url: dataUrl, isImage: false });
+                        selectedFiles.push({
+                            name: file.name,
+                            url: dataUrl,
+                            isImage: false
+                        });
                         renderAttachmentsPreview();
                     }
                 };
@@ -807,6 +742,7 @@
             }
         }
 
+        // --- NEW CHAT ACTION SYSTEM ---
         function extractTextFromMsg(msg) {
             if (typeof msg.content === 'string') return msg.content;
             if (Array.isArray(msg.content)) {
@@ -838,7 +774,6 @@
             if (messageHistory[messageHistory.length - 1].role === 'assistant') {
                 messageHistory.pop();
             }
-            isRegeneratingFlag = true;
             await triggerGenerationStream();
         }
 
@@ -891,7 +826,6 @@
             messageHistory = messageHistory.slice(0, index + 1);
             saveChatState();
             
-            isEditingFlag = true;
             await triggerGenerationStream();
         }
 
@@ -1044,43 +978,49 @@
                         nodeData.contentNode.insertAdjacentHTML('beforeend', carouselHTML);
                     }
                     if (msg.videos && msg.videos.length > 0) {
-                        let videoHTML = `<div class="mt-4 flex flex-wrap gap-4">`;
+                        let videoHTML = `<div class="mt-4 grid gap-4 grid-cols-1 md:grid-cols-2">`;
                         msg.videos.forEach((vid, i) => {
                             videoHTML += `
-                                <div class="flex flex-col bg-[#161616] border border-gray-700/60 rounded-xl overflow-hidden shadow-sm hover:border-gray-500 transition-colors w-full max-w-[340px] shrink-0">
-                                    <!-- Sleek Compact Header -->
-                                    <div class="flex justify-between items-center px-3 py-2 bg-[#1c1c1c] border-b border-gray-800">
-                                        <div class="flex items-center gap-1.5 text-gray-200 font-semibold text-[11px] tracking-wide">
-                                            <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
-                                            YouTube
-                                        </div>
-                                        <a href="${vid.url}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-gray-400 hover:text-white flex items-center gap-1 font-medium bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded transition-colors !border-none !no-underline shadow-sm" title="Open directly in YouTube">
-                                            Open ↗
-                                        </a>
-                                    </div>
-
-                                    <!-- Video Area -->
-                                    <div class="relative w-full aspect-video bg-black cursor-pointer group" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${vid.video_id}?autoplay=1\\' frameborder=\\'0\\' allow=\\'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\\' allowfullscreen></iframe>'">
+                                <div class="flex flex-col bg-gray-900 border border-gray-700 rounded-xl overflow-hidden shadow-lg hover:border-gray-500 transition-colors">
+                                    <div class="relative w-full aspect-video bg-black cursor-pointer group" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${vid.video_id}?autoplay=1\\' frameborder=\\'0\\' allow=\\'autoplay; encrypted-media\\' allowfullscreen></iframe>'">
                                         <img src="${vid.thumbnail}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
                                         <div class="absolute inset-0 flex items-center justify-center">
-                                            <div class="w-10 h-10 bg-red-600/90 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.4)] group-hover:scale-110 transition-transform">
-                                                <svg class="w-5 h-5 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                            <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                                <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="p-3 bg-[#161616] flex flex-col gap-1.5">
-                                        <a href="${vid.url}" target="_blank" rel="noopener noreferrer" class="font-semibold text-[13px] text-gray-100 line-clamp-2 hover:text-blue-400 transition-colors leading-snug !border-none !no-underline">${vid.title}</a>
-                                        <p class="text-[11px] text-gray-400 font-medium flex items-center gap-1.5">
+                                    <div class="p-3">
+                                        <a href="${vid.url}" target="_blank" class="font-medium text-sm text-gray-100 line-clamp-2 hover:text-blue-400 transition-colors leading-snug">${vid.title}</a>
+                                        <p class="text-xs text-gray-400 mt-1 flex items-center gap-1">
                                             <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                                             ${vid.channel}
                                         </p>
-                                        ${vid.description ? `<p class="text-[11px] text-gray-500 line-clamp-2 leading-relaxed">${vid.description}</p>` : ''}
                                     </div>
                                 </div>
                             `;
                         });
                         videoHTML += `</div>`;
                         nodeData.contentNode.insertAdjacentHTML('beforeend', videoHTML);
+                    }
+                    
+                    // --- WEB SOURCES RENDERING (NEW) ---
+                    if (msg.sources && msg.sources.length > 0) {
+                        let sourcesHTML = `<div class="mt-4 flex flex-wrap gap-2 pt-2 border-t border-gray-800">`;
+                        msg.sources.forEach(src => {
+                            try {
+                                let domain = new URL(src.url).hostname.replace('www.', '');
+                                sourcesHTML += `
+                                <a href="${src.url}" target="_blank" class="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-1.5 rounded-full transition-colors !no-underline group shadow-sm w-fit max-w-[200px]">
+                                    <div class="w-4 h-4 rounded-full bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
+                                        <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-full h-full object-cover">
+                                    </div>
+                                    <span class="text-xs font-medium text-gray-300 group-hover:text-blue-400 truncate">${src.title || domain}</span>
+                                </a>`;
+                            } catch(e){}
+                        });
+                        sourcesHTML += `</div>`;
+                        nodeData.contentNode.insertAdjacentHTML('beforeend', sourcesHTML);
                     }
                 }
                 
@@ -1120,7 +1060,6 @@
             const apiKey = apiKeyInput.value.trim();
             const model = modelSelect.value;
             const useStream = streamToggle.checked;
-            const sysPrompt = document.getElementById('systemPrompt').value.trim();
 
             if (!apiKey) return showToast("API Key is required");
             if (!model) return showToast("Select a model first");
@@ -1145,56 +1084,11 @@
             let fullAssistantText = "";
             let assistantImages = [];
             let assistantVideos = [];
+            let assistantSources = []; // NEW: Array to collect web sources
             let hasStartedStreaming = false;
 
             try {
-                // --- SMART INJECTION LOGIC ---
-                const apiMessages = messageHistory.map((m, index) => {
-                    // Only apply wrapper and system prompt to the LAST user message
-                    if (m.role === 'user' && index === messageHistory.length - 1) {
-                        let textContent = "";
-                        const originalContent = JSON.parse(JSON.stringify(m.content)); // Deep clone
-                        
-                        if (Array.isArray(originalContent)) {
-                            const txtObj = originalContent.find(c => c.type === 'text');
-                            if (txtObj) textContent = txtObj.text;
-                        } else {
-                            textContent = originalContent;
-                        }
-
-                        let injectedPrompt = "";
-                        
-                        if (sysPrompt) {
-                            injectedPrompt += `[SYSTEM INSTRUCTIONS]\n${sysPrompt}\n[/SYSTEM INSTRUCTIONS]\n\n`;
-                        }
-                        
-                        if (isRegeneratingFlag) {
-                            injectedPrompt += `[SYSTEM NOTE]\nThe user requested to REGENERATE the previous response. Please provide a new, improved, or alternative answer.\n[/SYSTEM NOTE]\n\n`;
-                        } else if (isEditingFlag) {
-                            injectedPrompt += `[SYSTEM NOTE]\nThe user has EDITED their previous message to branch off the conversation. Treat this as a new direction and provide a fresh, updated response based on this new request.\n[/SYSTEM NOTE]\n\n`;
-                        }
-
-                        if (injectedPrompt) {
-                            injectedPrompt += `[USER REQUEST]\n${textContent}\n[/USER REQUEST]`;
-                        } else {
-                            injectedPrompt = textContent; // Fallback if no modifiers are present
-                        }
-
-                        // Reassemble payload safely
-                        if (Array.isArray(originalContent)) {
-                            const txtObj = originalContent.find(c => c.type === 'text');
-                            if (txtObj) {
-                                txtObj.text = injectedPrompt;
-                            } else {
-                                originalContent.push({ type: 'text', text: injectedPrompt });
-                            }
-                            return { role: 'user', content: originalContent };
-                        } else {
-                            return { role: 'user', content: injectedPrompt };
-                        }
-                    }
-                    return { role: m.role, content: m.content };
-                });
+                const apiMessages = messageHistory.map(m => ({ role: m.role, content: m.content }));
 
                 const response = await fetch(`${baseUrl}/v1/chat/completions`, {
                     method: 'POST',
@@ -1244,6 +1138,7 @@
                                             hasStartedStreaming = true;
                                         }
                                         
+                                        // Update text immediately without an artificial queue
                                         fullAssistantText += delta.content;
                                         streamNode.contentNode.innerHTML = marked.parse(fullAssistantText);
                                         transformYouTubeLinks(streamNode.contentNode);
@@ -1266,6 +1161,14 @@
                                             }
                                         });
                                     }
+                                    // Collect Web Sources live
+                                    if (delta.sources && delta.sources.length > 0) {
+                                        delta.sources.forEach(src => {
+                                            if (!assistantSources.find(e => e.url === src.url)) {
+                                                assistantSources.push(src);
+                                            }
+                                        });
+                                    }
                                 } catch (e) { } 
                             }
                         }
@@ -1276,9 +1179,16 @@
                     fullAssistantText = msg.content || "";
                     assistantImages = msg.images || [];
                     assistantVideos = msg.videos || [];
+                    assistantSources = msg.sources || []; // NEW
                 }
 
-                messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages, videos: assistantVideos });
+                messageHistory.push({ 
+                    role: "assistant", 
+                    content: fullAssistantText, 
+                    images: assistantImages, 
+                    videos: assistantVideos,
+                    sources: assistantSources // Push to message history state
+                });
                 saveChatState();
 
             } catch (error) {
@@ -1289,8 +1199,6 @@
                 saveChatState();
             } finally {
                 isGenerating = false;
-                isRegeneratingFlag = false; // Reset flag
-                isEditingFlag = false; // Reset flag
                 sendBtn.disabled = messageInput.value.trim() === '' && selectedFiles.length === 0;
                 messageInput.focus();
                 

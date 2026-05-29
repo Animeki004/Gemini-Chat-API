@@ -545,6 +545,30 @@ class AsyncChatbot:
                                         
                                     videos = extract_youtube_videos(body)
 
+                                    # EXTRACT GROUNDING / WEB SOURCES (NEW)
+                                    sources = []
+                                    def extract_web_sources(obj, srcs=None, seen=None):
+                                        if srcs is None: srcs = []
+                                        if seen is None: seen = set()
+                                        
+                                        if isinstance(obj, list):
+                                            # Signature of a web link in Gemini payload is typically [ "http...", "Title", ... ]
+                                            if len(obj) >= 2 and isinstance(obj[0], str) and isinstance(obj[1], str):
+                                                url = obj[0]
+                                                title = obj[1]
+                                                if url.startswith("http") and not any(x in url for x in ["googleusercontent.com", "youtube.com", "youtu.be", "gstatic.com"]):
+                                                    if url not in seen:
+                                                        seen.add(url)
+                                                        srcs.append({"url": url, "title": title if title else url})
+                                            for item in obj:
+                                                extract_web_sources(item, srcs, seen)
+                                        elif isinstance(obj, dict):
+                                            for val in obj.values():
+                                                extract_web_sources(val, srcs, seen)
+                                        return srcs
+                                    
+                                    sources = extract_web_sources(body)
+
                                     content = re.sub(r'!?\[[^\]]*\]\((?:https?://)?(?:[^)]*?)googleusercontent\.com/youtube_content/[^)]+\)', '', content)
                                     content = re.sub(r'(?:https?://)?(?:[^)\s]*?)googleusercontent\.com/youtube_content/\S+', '', content)    
 
@@ -569,7 +593,7 @@ class AsyncChatbot:
                                     chunk_delta = content[prev_content_length:]
                                     prev_content_length = len(content)
 
-                                    if chunk_delta or images:  # Only yield if there's actually new text or images to show
+                                    if chunk_delta or images or sources:  # Only yield if there's actually new text or images or sources to show
                                         yield {
                                             "content": content,       # The complete, accumulated text so far
                                             "chunk": chunk_delta,     # THE LIVE DELTA CHUNK (Use this for your fast UI typing!)
@@ -578,6 +602,7 @@ class AsyncChatbot:
                                             "choice_id": choice_id,   # ADDED: choice_id required for persistent streaming
                                             "images": images,
                                             "videos": videos,
+                                            "sources": sources,       # THE GROUNDING WEB SOURCES
                                             "error": False,
                                         }
                 except json.JSONDecodeError:
@@ -780,6 +805,30 @@ class AsyncChatbot:
                 videos = extract_youtube_videos(body)
                 if videos:
                     console.log(f"[green]YouTube Videos detected![/green] {len(videos)} found.")   
+                
+                # EXTRACT GROUNDING / WEB SOURCES (NEW)
+                sources = []
+                def extract_web_sources(obj, srcs=None, seen=None):
+                    if srcs is None: srcs = []
+                    if seen is None: seen = set()
+                    if isinstance(obj, list):
+                        if len(obj) >= 2 and isinstance(obj[0], str) and isinstance(obj[1], str):
+                            url = obj[0]
+                            title = obj[1]
+                            if url.startswith("http") and not any(x in url for x in ["googleusercontent.com", "youtube.com", "youtu.be", "gstatic.com"]):
+                                if url not in seen:
+                                    seen.add(url)
+                                    srcs.append({"url": url, "title": title if title else url})
+                        for item in obj:
+                            extract_web_sources(item, srcs, seen)
+                    elif isinstance(obj, dict):
+                        for val in obj.values():
+                            extract_web_sources(val, srcs, seen)
+                    return srcs
+                
+                sources = extract_web_sources(body)
+                if sources:
+                    console.log(f"[green]Web Sources detected![/green] {len(sources)} found.")
 
                 if not images and content:
                     try:
@@ -813,6 +862,7 @@ class AsyncChatbot:
                     "choices": choices,
                     "images": images,
                     "videos": videos,
+                    "sources": sources, # Include sources in standard response
                     "error": False,
                 }
 

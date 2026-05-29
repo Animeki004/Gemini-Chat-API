@@ -1,10 +1,10 @@
 import os
-import time
 import telebot
 import asyncio
 import json
 import re
 import html
+import time
 import database as db
 from gemini_client.core import AsyncChatbot
 from gemini_client.enums import Model
@@ -398,6 +398,7 @@ if bot:
                 active_msg_ids = [sent_msg.message_id]
                 last_text = ""
                 last_images = []
+                last_sources = [] # NEW: Array to collect web sources
                 update_counter = 0
                 
                 async for chunk in chatbot.ask_stream(message.text):
@@ -411,6 +412,9 @@ if bot:
 
                     if chunk.get("images"):
                         last_images = chunk["images"]
+
+                    if chunk.get("sources"):
+                        last_sources = chunk["sources"]
 
                     raw_content = chunk.get("content", "")
                     reply_text = normalize_content(raw_content)
@@ -458,6 +462,22 @@ if bot:
                         json.dump(data, f)
                 
                 final_text = last_text if last_text else "No content returned."
+                
+                # --- RENDER WEB SOURCES (NEW) ---
+                if last_sources:
+                    sources_html = "\n\n🔗 <b>Sources:</b>\n"
+                    seen_urls = set()
+                    count = 0
+                    for src in last_sources:
+                        url = src.get("url", "")
+                        title = src.get("title", url)
+                        if url not in seen_urls:
+                            seen_urls.add(url)
+                            sources_html += f"• <a href='{url}'>{html.escape(title)}</a>\n"
+                            count += 1
+                            if count >= 6: break # Prevent massive text blocks
+                    final_text += sources_html
+                    
                 chunks = smart_split(final_text)
                 
                 while len(chunks) > len(active_msg_ids):
@@ -476,17 +496,15 @@ if bot:
                             pass
                 
                 # =======================================================
-                # ASYNC HIGH-SPEED IMAGE RENDERER (UPDATED FOR IMAGE.PY CLASSES)
+                # ASYNC HIGH-SPEED IMAGE RENDERER
                 # =======================================================
                 if last_images:
                     bot.send_chat_action(message.chat.id, 'upload_photo')
                     for img in last_images:
                         try:
-                            # Safely extract URL & Title whether it's an Image object or a dictionary
                             img_url = img.url if hasattr(img, 'url') else img.get('url')
                             img_title = img.title if hasattr(img, 'title') else img.get('title', 'Generated Image')
                             
-                            # Reuse AsyncSession for immediate image fetch
                             img_resp = await chatbot.session.get(img_url, timeout=20)
                             
                             if img_resp.status_code == 200:
@@ -601,21 +619,25 @@ if bot:
                 if time.time() > expires_at:
                     status = "🔴 Expired"
                 else:
+                    # Convert the timestamp into a human-readable live time string
+                    live_time_str = time.strftime('%b %d, %Y %I:%M %p', time.localtime(expires_at))
                     hours_left = round((expires_at - time.time()) / 3600, 1)
+                    
                     if hours_left > 720:
-                        status += f" (Expires in {round(hours_left/720, 1)}mo)"
+                        status += f" (Expires: {live_time_str} | {round(hours_left/720, 1)}mo left)"
                     elif hours_left > 168:
-                        status += f" (Expires in {round(hours_left/168, 1)}w)"
+                        status += f" (Expires: {live_time_str} | {round(hours_left/168, 1)}w left)"
                     elif hours_left > 24:
-                        status += f" (Expires in {round(hours_left/24, 1)}d)"
+                        status += f" (Expires: {live_time_str} | {round(hours_left/24, 1)}d left)"
                     else:
-                        status += f" (Expires in {hours_left}h)"
+                        status += f" (Expires: {live_time_str} | {hours_left}h left)"
             elif active:
                 status += " (Permanent)"
                 
             role_icon = "🛡" if role == 'admin' else "👤"
             text += f"{role_icon} <b>{name}</b> ({role.upper()}) - {status}\n<code>{k}</code>\nModels: <code>{allowed_models}</code>\nSession Timeout: <code>{timeout} hours</code>\nRate Limit: <code>{rpm} RPM</code>\n\n"
         bot.reply_to(message, text, parse_mode="HTML")
+
 
     @bot.message_handler(commands=['ratelimit'])
     def set_key_ratelimit(message):
@@ -657,9 +679,6 @@ if bot:
             
         db.set_global_rate_limit(rpm)
         bot.reply_to(message, f"✅ Global default rate limit updated to <b>{rpm} requests per minute</b>. This will apply to all newly generated API keys.", parse_mode="HTML")
-
-    @bot.message_handler(commands=['settimeout'])
-
 
     @bot.message_handler(commands=['settimeout'])
     def set_key_timeout(message):

@@ -252,10 +252,10 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                                     safe_imgs.append({"url": img['url'], "title": img.get('title', 'Image')})
                             
                             safe_vids = result.get("videos", [])
-
+                            safe_sources = result.get("sources", [])
                             
-                            # Emit the live text chunk, images, and videos
-                            if chunk_text or safe_imgs or safe_vids:
+                            # Emit the live text chunk, images, videos, and sources
+                            if chunk_text or safe_imgs or safe_vids or safe_sources:
                                 has_content = True
                                 delta_data = {}
                                 if chunk_text:
@@ -264,6 +264,8 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                                     delta_data["images"] = safe_imgs
                                 if safe_vids:
                                     delta_data["videos"] = safe_vids
+                                if safe_sources:
+                                    delta_data["sources"] = safe_sources
 
                                 chunk_json = {
                                     "id": f"chatcmpl-{uuid.uuid4().hex}",
@@ -368,6 +370,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                     safe_imgs.append({"url": img['url'], "title": img.get('title', 'Image')})
 
             safe_vids = response.get("videos", [])
+            safe_sources = response.get("sources", [])
 
             # RESET SESSION: If we got a completely blank response (usually signifies bad session state)
             if not final_content and not safe_imgs and not safe_vids:
@@ -383,7 +386,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                 "object": "chat.completion",
                 "created": int(time.time()),
                 "model": request.model,
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content, "images": safe_imgs, "videos": safe_vids}, "finish_reason": "stop"}]
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content, "images": safe_imgs, "videos": safe_vids, "sources": safe_sources}, "finish_reason": "stop"}]
             }
 
     except HTTPException:
