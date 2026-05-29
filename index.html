@@ -806,6 +806,14 @@
                 this.style.height = 'auto';
                 this.style.height = Math.min(this.scrollHeight, 300) + 'px';
             });
+            
+            textarea.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    submitEdit(index);
+                }
+            });
+            
             textarea.dispatchEvent(new Event('input'));
         }
 
@@ -827,7 +835,7 @@
             messageHistory = messageHistory.slice(0, index + 1);
             saveChatState();
             
-            await triggerGenerationStream();
+            await triggerGenerationStream(true);
         }
 
         function createBubbleNode(role, isLastAI = false, index = -1) {
