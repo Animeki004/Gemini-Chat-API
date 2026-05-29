@@ -240,7 +240,8 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                                     safe_imgs.append({"url": img.url, "title": getattr(img, 'title', 'Image')})
                                 elif isinstance(img, dict) and 'url' in img:
                                     safe_imgs.append({"url": img['url'], "title": img.get('title', 'Image')})
-                                    safe_vids = result.get("videos", [])
+                            
+                            safe_vids = result.get("videos", [])
                             
                             # Emit the live text chunk, images, and videos
                             if chunk_text or safe_imgs or safe_vids:
