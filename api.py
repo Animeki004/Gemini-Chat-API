@@ -52,6 +52,7 @@ class ChatCompletionRequest(BaseModel):
     response_format: Optional[Dict[str, str]] = None
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+    canvas_mode: Optional[bool] = False # NEW FIELD
 
     class Config:
         extra = "ignore"  # Strongly prevents 422 errors
@@ -147,13 +148,54 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
     
     if allowed_list and request.model not in allowed_list:
         raise HTTPException(status_code=403, detail=f"Your API key does not have access to model: {request.model}.")
-        
+
+    # --- NEW SYSTEM PROMPT & CANVAS LOGIC ---
+    system_prompts = []
+    user_messages = []
+    
+    for m in request.messages:
+        if m.role == "system":
+            if isinstance(m.content, list):
+                text_parts = [item.get("text", "") for item in m.content if isinstance(item, dict) and item.get("type") == "text"]
+                system_prompts.append("\n".join(text_parts))
+            elif isinstance(m.content, str):
+                system_prompts.append(m.content)
+        else:
+            user_messages.append(m)
+
+    if request.canvas_mode:
+        CANVAS_INSTRUCTION_PROMPT = """[WORKSPACE MODE ACTIVE]
+You are operating in an advanced IDE Workspace. 
+You can EITHER output a complete file OR modify an existing one.
+
+To create a NEW file or rewrite completely, use:
+<code_container filename="example.html">
+<!-- Complete code here -->
+</code_container>
+
+To MODIFY an existing file, use:
+<code_patch filename="example.html">
+<search>
+Code to find (must match exactly)
+</search>
+<replace>
+New code to replace it with
+</replace>
+</code_patch>
+
+CRITICAL RULES:
+1. NEVER use standard markdown code blocks (e.g. ```html).
+2. For <code_patch>, the <search> block MUST match the existing file content exactly.
+3. The code inside <code_container> must be complete and ready to run.
+4. You may explain your thoughts in plain text outside the XML tags."""
+        system_prompts.append(CANVAS_INSTRUCTION_PROMPT)
+
     # Get the last message to process
-    last_msg_content = request.messages[-1].content if request.messages else ""
+    last_msg_content = user_messages[-1].content if user_messages else ""
     prompt_parts = []
     files_to_upload = []
     temp_files = []
-    prompt = ""
+    user_prompt_text = ""
 
     # Check for Vision/File Payload (List of Dictionaries/Objects)
     if isinstance(last_msg_content, list):
@@ -185,13 +227,25 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                             temp_files.append(tmp_path)
                         except Exception as e:
                             print(f"Failed to decode base64 file: {e}")
-        prompt = "\n".join(prompt_parts).strip()
-        if not prompt and files_to_upload:
-            prompt = "Analyze the provided files/images."
+        user_prompt_text = "\n".join(prompt_parts).strip()
+        if not user_prompt_text and files_to_upload:
+            user_prompt_text = "Analyze the provided files/images."
     else:
         # Standard text message
-        prompt = str(last_msg_content) if last_msg_content else ""
-    
+        user_prompt_text = str(last_msg_content) if last_msg_content else ""
+
+    # Combine System Prompts and User Prompt
+    final_prompt = ""
+    if system_prompts:
+        combined_system = "\n\n".join(system_prompts)
+        if user_prompt_text:
+            final_prompt = f"[SYSTEM INSTRUCTIONS]\n{combined_system}\n[/SYSTEM INSTRUCTIONS]\n\n[USER REQUEST]\n{user_prompt_text}\n[/USER REQUEST]"
+        else:
+            final_prompt = f"[SYSTEM INSTRUCTIONS]\n{combined_system}\n[/SYSTEM INSTRUCTIONS]"
+    else:
+        final_prompt = user_prompt_text
+
+    prompt = final_prompt
     api_key_token = auth_data["key"]
 
     try:
