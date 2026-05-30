@@ -124,15 +124,16 @@
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Mic Recording Pulse Animation */
-        .mic-recording {
-            animation: mic-pulse 1.5s infinite;
+        /* Advanced Mic Recording Pulse Animation */
+        .mic-active {
             color: #ef4444 !important; /* Tailwind Red 500 */
         }
-        @keyframes mic-pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.15); }
-            100% { transform: scale(1); }
+        .mic-speaking svg {
+            animation: mic-speak-pulse 0.25s infinite alternate ease-in-out;
+        }
+        @keyframes mic-speak-pulse {
+            0% { transform: scale(1); filter: drop-shadow(0 0 0px rgba(239,68,68,0)); }
+            100% { transform: scale(1.25); filter: drop-shadow(0 0 6px rgba(239,68,68,0.8)); }
         }
 
         /* ============================================================== */
@@ -376,7 +377,7 @@
         </div>
         <div class="flex-1 w-full flex flex-col bg-black">
             <div class="w-full aspect-video bg-black relative shadow-lg">
-                <iframe id="sidePlayerIframe" class="w-full h-full border-0 absolute top-0 left-0" src="" allowfullscreen allow="autoplay; encrypted-media"></iframe>
+                <iframe id="sidePlayerIframe" class="w-full h-full border-0 absolute top-0 left-0" src="" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture"></iframe>
             </div>
             <div id="sidePlayerDetails" class="p-5 flex-1 overflow-y-auto bg-gray-900">
                 <h2 id="sidePlayerDescTitle" class="text-lg font-bold text-gray-100 mb-2 leading-tight"></h2>
@@ -785,6 +786,8 @@
         let speechRecognition = null;
         let isRecording = false;
         let transcriptBase = ''; // Anchor to prevent interim result echo duplication
+        let isProgrammaticInput = false; // Flag to prevent infinite loops when updating text via script
+        let speechTimeout; // Timer for dynamic mic animation
 
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -793,23 +796,48 @@
             speechRecognition.interimResults = true;
             
             speechRecognition.onresult = (event) => {
+                const input = document.getElementById('messageInput');
+
+                // NEW: If the user has highlighted text (like "Select All"), delete it so new speech takes over
+                if (input.selectionStart !== input.selectionEnd) {
+                    const start = input.selectionStart;
+                    const end = input.selectionEnd;
+                    transcriptBase = input.value.substring(0, start) + input.value.substring(end);
+                    if (transcriptBase.length > 0 && !transcriptBase.endsWith(' ')) {
+                        transcriptBase += ' ';
+                    }
+                    input.setSelectionRange(start, start); // Clear selection
+                }
+
                 let interimTranscript = '';
+                let newFinal = '';
                 
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
                     if (event.results[i].isFinal) {
-                        // Append to base ONLY when final
-                        transcriptBase += event.results[i][0].transcript;
+                        newFinal += event.results[i][0].transcript;
                     } else {
-                        // Hold interim guess temporarily
                         interimTranscript += event.results[i][0].transcript;
                     }
                 }
                 
-                const input = document.getElementById('messageInput');
-                // Reconstruct exactly what it should be (Base + current live guess)
+                // Append final text to our secure base anchor
+                transcriptBase += newFinal;
+                
+                // Flag true so our manual-edit listener ignores this programmatic update
+                isProgrammaticInput = true;
                 input.value = transcriptBase + interimTranscript;
                 input.dispatchEvent(new Event('input')); // Trigger resize and state updates
+                isProgrammaticInput = false;
+                
                 input.scrollTop = input.scrollHeight;
+
+                // Handle dynamic "speaking" animation effect based on real audio results
+                const micBtn = document.getElementById('micBtn');
+                micBtn.classList.add('mic-speaking');
+                clearTimeout(speechTimeout);
+                speechTimeout = setTimeout(() => {
+                    micBtn.classList.remove('mic-speaking');
+                }, 400); // Wait 400ms after last word to stop pulsing
             };
 
             speechRecognition.onerror = (event) => {
@@ -819,8 +847,16 @@
             };
 
             speechRecognition.onend = () => {
+                const micBtn = document.getElementById('micBtn');
+                micBtn.classList.remove('mic-speaking');
+                
                 if (isRecording) {
-                    // Auto-restart if browser stops it temporarily (unless user clicked stop)
+                    // Re-anchor the base before restarting to catch any edge-case edits during the cycle
+                    const input = document.getElementById('messageInput');
+                    transcriptBase = input.value;
+                    if (transcriptBase.length > 0 && !transcriptBase.endsWith(' ')) {
+                        transcriptBase += ' '; 
+                    }
                     speechRecognition.start();
                 }
             };
@@ -845,7 +881,7 @@
                     }
 
                     speechRecognition.start();
-                    micBtn.classList.add('mic-recording');
+                    micBtn.classList.add('mic-active');
                     micBtn.classList.remove('text-gray-400');
                 } else {
                     showToast("Speech recognition not supported in this browser.");
@@ -858,7 +894,7 @@
                 isRecording = false;
                 speechRecognition.stop();
                 const micBtn = document.getElementById('micBtn');
-                micBtn.classList.remove('mic-recording');
+                micBtn.classList.remove('mic-active', 'mic-speaking');
                 micBtn.classList.add('text-gray-400');
             }
         }
@@ -876,7 +912,8 @@
             descTitle.textContent = title || '';
             channelEl.innerHTML = channel ? `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> ${channel}` : '';
             
-            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+            // FIX: Use youtube-nocookie to bypass tracking/ad-blocker strict errors
+            iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
             
             // Expand Panel Width
             panel.classList.remove('w-0');
@@ -1015,11 +1052,24 @@
         modelSelect.addEventListener('change', () => localStorage.setItem('selectedModel', modelSelect.value));
         streamToggle.addEventListener('change', () => localStorage.setItem('streamEnabled', streamToggle.checked));
 
-        messageInput.addEventListener('input', function() {
+        messageInput.addEventListener('input', function(e) {
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 192) + 'px'; 
             if(this.value.trim() === '') this.style.height = 'auto';
             updateSendButtonState();
+
+            // FIX: Smart manual edit detection
+            // If the user manually edits the text while recording, we force an immediate 
+            // reset of the speech cycle so the old interim results don't re-append.
+            if (!isProgrammaticInput && isRecording) {
+                transcriptBase = this.value;
+                if (transcriptBase.length > 0 && !transcriptBase.endsWith(' ')) {
+                    transcriptBase += ' ';
+                }
+                // Stop abruptly flushes the old speech session. 
+                // The `onend` event catches this and perfectly restarts it using the new base.
+                speechRecognition.stop(); 
+            }
         });
 
         messageInput.addEventListener('keydown', function(e) {
