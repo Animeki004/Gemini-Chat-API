@@ -268,6 +268,10 @@
                     <input type="checkbox" id="streamToggle" class="w-4 h-4 rounded bg-gray-800 border-gray-700 text-blue-500 focus:ring-blue-600 focus:ring-offset-gray-900 transition-colors">
                     <span class="group-hover:text-white transition-colors">Stream Responses</span>
                 </label>
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-300 pl-1 group mt-2">
+                    <input type="checkbox" id="canvasToggle" class="w-4 h-4 rounded bg-gray-800 border-gray-700 text-blue-500 focus:ring-blue-600 focus:ring-offset-gray-900 transition-colors">
+                    <span class="group-hover:text-white transition-colors">Enable Canvas Mode</span>
+                </label>
             </div>
         </div>
         
@@ -1026,6 +1030,7 @@
         const systemPromptInput = document.getElementById('systemPrompt');
         const modelSelect = document.getElementById('modelSelect');
         const streamToggle = document.getElementById('streamToggle');
+        const canvasToggle = document.getElementById('canvasToggle');
         const chatBox = document.getElementById('chatBox');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
@@ -1038,6 +1043,7 @@
             apiKeyInput.value = localStorage.getItem('apiKey') || '';
             systemPromptInput.value = localStorage.getItem('systemPrompt') || '';
             streamToggle.checked = localStorage.getItem('streamEnabled') !== 'false';
+            canvasToggle.checked = localStorage.getItem('canvasEnabled') === 'true';
             
             const cachedModels = JSON.parse(localStorage.getItem('cachedModels')) || [];
             if (cachedModels.length > 0) populateModelDropdown(cachedModels, localStorage.getItem('selectedModel'));
@@ -1051,6 +1057,7 @@
         systemPromptInput.addEventListener('input', () => localStorage.setItem('systemPrompt', systemPromptInput.value));
         modelSelect.addEventListener('change', () => localStorage.setItem('selectedModel', modelSelect.value));
         streamToggle.addEventListener('change', () => localStorage.setItem('streamEnabled', streamToggle.checked));
+        canvasToggle.addEventListener('change', () => localStorage.setItem('canvasEnabled', canvasToggle.checked));
 
         messageInput.addEventListener('input', function(e) {
             this.style.height = 'auto';
@@ -1569,6 +1576,7 @@
             const apiKey = apiKeyInput.value.trim();
             const model = modelSelect.value;
             const useStream = streamToggle.checked;
+            const useCanvas = canvasToggle.checked;
             const sysPrompt = document.getElementById('systemPrompt').value.trim();
 
             if (!apiKey) return showToast("API Key is required");
@@ -1654,7 +1662,8 @@
                         model: model,
                         messages: apiMessages,
                         stream: useStream,
-                        temperature: 0.7
+                        temperature: 0.7,
+                        enable_canvas: useCanvas
                     }),
                     signal: abortController.signal
                 });

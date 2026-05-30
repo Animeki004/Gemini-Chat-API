@@ -41,6 +41,7 @@ class ChatCompletionRequest(BaseModel):
     top_p: Optional[float] = 1.0
     n: Optional[int] = 1
     stream: Optional[bool] = False
+    enable_canvas: Optional[bool] = False # Enable Gemini Immersive/Canvas Artifacts
     stop: Optional[Union[str, List[str]]] = None
     max_tokens: Optional[int] = None
     max_completion_tokens: Optional[int] = None
@@ -219,7 +220,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
                     has_content = False
                     
                     try:
-                        async for result in bot.ask_stream(prompt, files=files_to_upload):
+                        async for result in bot.ask_stream(prompt, files=files_to_upload, enable_canvas=request.enable_canvas):
                             # Catch potential API/cookie errors returned elegantly during stream
                             if result.get("error"):
                                 # RESET SESSION: Clear invalid conversation bindings on error
@@ -332,7 +333,7 @@ async def chat_completions(request: ChatCompletionRequest, auth_data: dict = Dep
 
         else:
             # STANDARD SYNCHRONOUS REQUEST (Non-Streaming)
-            response = await bot.ask(prompt, files=files_to_upload)
+            response = await bot.ask(prompt, files=files_to_upload, enable_canvas=request.enable_canvas)
             
             # Clean up temporary uploaded files
             for p in temp_files:

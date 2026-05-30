@@ -2,6 +2,7 @@
 #########################################
 # Code Modified to use curl_cffi & robust text extraction with Delta Streaming
 # Upgraded with Dynamic File Upload Support (Multiple Files + Auto Type Detection)
+# Upgraded with Canvas Enablement Logic (Index 44 Trigger)
 #########################################
 import asyncio
 import json
@@ -10,6 +11,7 @@ import random
 import re
 import string
 import mimetypes
+import uuid
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Tuple, Union, Optional, AsyncGenerator
@@ -149,12 +151,12 @@ class Chatbot:
             self.async_chatbot.load_conversation(file_path, conversation_name)
         )
 
-    def ask(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None) -> dict: 
-        return self.loop.run_until_complete(self.async_chatbot.ask(message, files=files, attachment=attachment, image=image))
+    def ask(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None, enable_canvas: bool = False) -> dict: 
+        return self.loop.run_until_complete(self.async_chatbot.ask(message, files=files, attachment=attachment, image=image, enable_canvas=enable_canvas))
 
-    def ask_stream(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None):
+    def ask_stream(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None, enable_canvas: bool = False):
         """Synchronous wrapper to consume the async generator for streaming chunks."""
-        gen = self.async_chatbot.ask_stream(message, files=files, attachment=attachment, image=image)
+        gen = self.async_chatbot.ask_stream(message, files=files, attachment=attachment, image=image, enable_canvas=enable_canvas)
         while True:
             try:
                 yield self.loop.run_until_complete(gen.__anext__())
@@ -379,7 +381,7 @@ class AsyncChatbot:
             console.log(f"[yellow]Cookie rotation failed: {e}[/yellow]")
             raise
 
-    async def ask_stream(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None) -> AsyncGenerator[dict, None]:
+    async def ask_stream(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None, enable_canvas: bool = False) -> AsyncGenerator[dict, None]:
         if self.SNlM0e is None:
             raise RuntimeError("AsyncChatbot not properly initialized. Call AsyncChatbot.create()")
 
@@ -443,6 +445,45 @@ class AsyncChatbot:
             self.PI9WOb
         ]
 
+        if enable_canvas:
+            dynamic_req_id = uuid.uuid4().hex
+            canvas_state = []
+            
+            # Pad exactly out to 82 indices to map the document state array perfectly into index 44
+            request_payload.extend([
+                dynamic_req_id, # 4
+                None,           # 5
+                [1],            # 6
+                1,              # 7
+                None, None,     # 8, 9
+                1,              # 10
+                0,              # 11
+                None, None, None, None, None, # 12-16
+                [[12]],         # 17: Tool configurations
+                0,              # 18
+                None, None, None, None, None, None, None, None, None, None, # 19-28
+                1,              # 29
+                None, None,     # 30-31
+                [4],            # 32
+                None, None, None, None, None, None, None, None, None, None, # 33-42
+                [1],            # 43
+                canvas_state,   # 44: <-- CANVAS ENABLER (Document State Array)
+                None, None, None, None, None, None, # 45-50
+                2,              # 51
+                None, None, None, # 52-54
+                0,              # 55
+                None, None, None, None, None, # 56-60
+                str(uuid.uuid4()).upper(), # 61: Standard UUID
+                None,           # 62
+                [],             # 63
+                None, None, None, None, None, # 64-68
+                0,              # 69
+                2,              # 70
+                None, None, None, None, None, None, None, None, None, None, # 71-80
+                3,              # 81
+                1               # 82
+            ])
+
         data = {
             "f.req": json.dumps(
                 [None, json.dumps(request_payload, separators=(",", ":"))],
@@ -496,6 +537,15 @@ class AsyncChatbot:
                                         
                                         content = extract_text(raw_content)
 
+                                    # 🎯 CANVAS ARTIFACT EXTRACTION 🎯
+                                    # Because we passed [] to Index 44, Gemini deposits the Canvas object securely here
+                                    if enable_canvas and len(body) > 32 and body[32]:
+                                        for artifact in body[32]:
+                                            if isinstance(artifact, list) and len(artifact) > 4 and artifact[4]:
+                                                title = artifact[2] if len(artifact) > 2 and artifact[2] else "Canvas Artifact"
+                                                code_block = artifact[4]
+                                                content += f"\n\n### {title}\n{code_block}\n"
+
                                     images = []
                                     def extract_image_urls(obj, urls=None):
                                         if urls is None: urls = []
@@ -545,14 +595,13 @@ class AsyncChatbot:
                                         
                                     videos = extract_youtube_videos(body)
 
-                                    # EXTRACT GROUNDING / WEB SOURCES (NEW)
+                                    # EXTRACT GROUNDING / WEB SOURCES
                                     sources = []
                                     def extract_web_sources(obj, srcs=None, seen=None):
                                         if srcs is None: srcs = []
                                         if seen is None: seen = set()
                                         
                                         if isinstance(obj, list):
-                                            # Signature of a web link with internal text mapping
                                             if len(obj) >= 5 and isinstance(obj[0], str) and obj[0].startswith("http"):
                                                 url = obj[0]
                                                 if not any(x in url for x in ["googleusercontent.com", "youtube.com", "youtu.be", "gstatic.com"]):
@@ -568,7 +617,6 @@ class AsyncChatbot:
                                                         seen.add(url)
                                                         srcs.append({"url": url, "title": title, "snippet": snippet})
                                             
-                                            # Signature of a simple web link fallback
                                             elif len(obj) >= 2 and isinstance(obj[0], str) and isinstance(obj[1], str):
                                                 url = obj[0]
                                                 title = obj[1]
@@ -616,10 +664,10 @@ class AsyncChatbot:
                                             "chunk": chunk_delta,     # THE LIVE DELTA CHUNK (Use this for your fast UI typing!)
                                             "conversation_id": conversation_id,
                                             "response_id": response_id,
-                                            "choice_id": choice_id,   # ADDED: choice_id required for persistent streaming
+                                            "choice_id": choice_id,   
                                             "images": images,
                                             "videos": videos,
-                                            "sources": sources,       # THE GROUNDING WEB SOURCES
+                                            "sources": sources,       
                                             "error": False,
                                         }
                 except json.JSONDecodeError:
@@ -630,7 +678,7 @@ class AsyncChatbot:
         except Exception as e:
             yield {"content": f"Streaming error: {e}", "chunk": f"Streaming error: {e}", "error": True}
 
-    async def ask(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None) -> dict:
+    async def ask(self, message: str, files: Optional[List[Union[bytes, str, Path]]] = None, attachment: Optional[Union[bytes, str, Path]] = None, image: Optional[Union[bytes, str, Path]] = None, enable_canvas: bool = False) -> dict:
         if self.SNlM0e is None:
             raise RuntimeError("AsyncChatbot not properly initialized. Call AsyncChatbot.create()")
 
@@ -668,7 +716,7 @@ class AsyncChatbot:
                     console.log(f"[red]Error uploading attachment '{file_input}': {e}[/red]")
                     return {"content": f"Error uploading attachment: {e}", "error": True}
 
-        # Prepare Conversation State Array (Relaxed check)
+        # Prepare Conversation State Array
         if self.conversation_id:
             conversation_state = [
                 self.conversation_id,
@@ -690,6 +738,45 @@ class AsyncChatbot:
             conversation_state,
             self.PI9WOb
         ]
+
+        if enable_canvas:
+            dynamic_req_id = uuid.uuid4().hex
+            canvas_state = []
+            
+            # Pad exactly out to 82 indices to map the document state array perfectly into index 44
+            request_payload.extend([
+                dynamic_req_id, # 4
+                None,           # 5
+                [1],            # 6
+                1,              # 7
+                None, None,     # 8, 9
+                1,              # 10
+                0,              # 11
+                None, None, None, None, None, # 12-16
+                [[12]],         # 17: Tool configurations
+                0,              # 18
+                None, None, None, None, None, None, None, None, None, None, # 19-28
+                1,              # 29
+                None, None,     # 30-31
+                [4],            # 32
+                None, None, None, None, None, None, None, None, None, None, # 33-42
+                [1],            # 43
+                canvas_state,   # 44: <-- CANVAS ENABLER (Document State Array)
+                None, None, None, None, None, None, # 45-50
+                2,              # 51
+                None, None, None, # 52-54
+                0,              # 55
+                None, None, None, None, None, # 56-60
+                str(uuid.uuid4()).upper(), # 61: Standard UUID
+                None,           # 62
+                [],             # 63
+                None, None, None, None, None, # 64-68
+                0,              # 69
+                2,              # 70
+                None, None, None, None, None, None, None, None, None, None, # 71-80
+                3,              # 81
+                1               # 82
+            ])
 
         data = {
             "f.req": json.dumps(
@@ -743,20 +830,29 @@ class AsyncChatbot:
                 return {"content": "Failed to parse response body. No valid data found.", "error": True}
 
             try:
-                content = ""
+                final_content = ""
                 if len(body) > 4 and len(body[4]) > 0 and len(body[4][0]) > 1:
                     raw_content = body[4][0][1]
                     
                     # ROBUST TEXT EXTRACTION LOGIC 
-                    # Recursively flattens nested lists back into standard text strings
-                    def extract_text(item):
-                        if isinstance(item, str): 
+                    def extract_text(item: Any) -> str:
+                        if isinstance(item, str):
                             return item
-                        if isinstance(item, list): 
+                        elif isinstance(item, list):
                             return "".join(extract_text(x) for x in item if x is not None)
                         return str(item) if item is not None else ""
                         
-                    content = extract_text(raw_content)
+                    final_content = extract_text(raw_content)
+
+                # 🎯 CANVAS ARTIFACT EXTRACTION 🎯
+                if enable_canvas and len(body) > 32 and body[32]:
+                    for artifact in body[32]:
+                        if isinstance(artifact, list) and len(artifact) > 4 and artifact[4]:
+                            title = artifact[2] if len(artifact) > 2 and artifact[2] else "Canvas Artifact"
+                            code_block = artifact[4]
+                            final_content += f"\n\n### {title}\n{code_block}\n"
+                
+                final_content = final_content.strip()
 
                 conversation_id = body[1][0] if len(body) > 1 and len(body[1]) > 0 else self.conversation_id
                 response_id = body[1][1] if len(body) > 1 and len(body[1]) > 1 else self.response_id
@@ -866,9 +962,9 @@ class AsyncChatbot:
                 if sources:
                     console.log(f"[green]Web Sources detected![/green] {len(sources)} found.")
 
-                if not images and content:
+                if not images and final_content:
                     try:
-                        urls = re.findall(r'(https?://[^\s]+\.(?:jpg|jpeg|png|gif|webp))', content.lower())
+                        urls = re.findall(r'(https?://[^\s]+\.(?:jpg|jpeg|png|gif|webp))', final_content.lower())
                         for i, url in enumerate(urls):
                             img_obj = Image(
                                 url=url, 
@@ -882,14 +978,14 @@ class AsyncChatbot:
                     except Exception:
                         pass
                 
-                content = re.sub(r'!?\[[^\]]*\]\((?:https?://)?(?:[^)]*?)googleusercontent\.com/image_(?:collection|generation_content)/[^)]+\)', '', content)
-                content = re.sub(r'(?:https?://)?(?:[^)\s]*?)googleusercontent\.com/image_(?:collection|generation_content)/\S+', '', content)
+                final_content = re.sub(r'!?\[[^\]]*\]\((?:https?://)?(?:[^)]*?)googleusercontent\.com/image_(?:collection|generation_content)/[^)]+\)', '', final_content)
+                final_content = re.sub(r'(?:https?://)?(?:[^)\s]*?)googleusercontent\.com/image_(?:collection|generation_content)/\S+', '', final_content)
 
-                content = re.sub(r'!?\[[^\]]*\]\((?:https?://)?(?:[^)]*?)googleusercontent\.com/youtube_content/[^)]+\)', '', content)
-                content = re.sub(r'(?:https?://)?(?:[^)\s]*?)googleusercontent\.com/youtube_content/\S+', '', content)
+                final_content = re.sub(r'!?\[[^\]]*\]\((?:https?://)?(?:[^)]*?)googleusercontent\.com/youtube_content/[^)]+\)', '', final_content)
+                final_content = re.sub(r'(?:https?://)?(?:[^)\s]*?)googleusercontent\.com/youtube_content/\S+', '', final_content)
 
                 results = {
-                    "content": content,
+                    "content": final_content,
                     "conversation_id": conversation_id,
                     "response_id": response_id,
                     "choice_id": choice_id,
@@ -898,7 +994,7 @@ class AsyncChatbot:
                     "choices": choices,
                     "images": images,
                     "videos": videos,
-                    "sources": sources, # Include sources in standard response
+                    "sources": sources,
                     "error": False,
                 }
 
