@@ -54,8 +54,19 @@
         /* Inline Code */
         .markdown-body code { font-family: 'ui-monospace', monospace; background-color: #333; padding: 0.2rem 0.4rem; border-radius: 0.375rem; font-size: 0.85em; color: #ececec; }
         
-        .markdown-body a { color: #60a5fa; text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
-        .markdown-body a:hover { border-color: #60a5fa; }
+        /* Dotted Link Styling */
+        .markdown-body a { 
+            color: #60a5fa; 
+            text-decoration: none; 
+            border-bottom: 1px dotted #60a5fa; 
+            transition: all 0.2s; 
+            padding-bottom: 1px;
+        }
+        .markdown-body a:hover { 
+            color: #93c5fd; 
+            border-bottom-color: #93c5fd; 
+        }
+
         .markdown-body strong { color: #ffffff; font-weight: 600; }
         
         .markdown-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
@@ -113,8 +124,19 @@
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
+        /* Mic Recording Pulse Animation */
+        .mic-recording {
+            animation: mic-pulse 1.5s infinite;
+            color: #ef4444 !important; /* Tailwind Red 500 */
+        }
+        @keyframes mic-pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+
         /* ============================================================== */
-        /* NATIVE GEMINI INLINE CITATION HOVER LOGIC (CORRECTED)          */
+        /* NATIVE GEMINI INLINE CITATION HOVER LOGIC                      */
         /* ============================================================== */
         
         .gemini-source-wrapper {
@@ -165,6 +187,7 @@
             cursor: pointer;
             text-decoration: none !important;
             pointer-events: none; /* Crucial: Don't block interactions when invisible */
+            border-bottom: none !important; /* Override dotted line for tooltips */
         }
         
         /* Transparent bridge so hover doesn't break when moving mouse to the tooltip */
@@ -258,7 +281,7 @@
     </aside>
 
     <!-- Main Chat Workspace -->
-    <main class="flex-1 flex flex-col h-full min-w-0 bg-gray-850 relative">
+    <main class="flex-1 flex flex-col h-full min-w-0 bg-gray-850 relative transition-all duration-300">
         
         <!-- Top Navigation Bar -->
         <header class="h-14 shrink-0 flex items-center justify-between px-4 border-b border-gray-800/60 bg-gray-850/90 backdrop-blur-sm sticky top-0 z-20">
@@ -312,14 +335,25 @@
                     
                     <input type="file" id="fileInput" multiple accept="*/*" class="hidden" onchange="handleFileUpload(event)">
                     
-                    <button type="button" onclick="document.getElementById('fileInput').click()" class="p-3.5 text-gray-400 hover:text-gray-200 transition-colors rounded-l-2xl flex-shrink-0 mb-0.5" title="Attach Files">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
-                    </button>
+                    <!-- Left action icons container -->
+                    <div class="flex items-center pb-1 pl-1">
+                        <button type="button" onclick="document.getElementById('fileInput').click()" class="p-3 text-gray-400 hover:text-gray-200 transition-colors rounded-full flex-shrink-0" title="Attach Files">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                        </button>
+                        
+                        <!-- New Speech to Text Microphone Button -->
+                        <button type="button" id="micBtn" onclick="toggleMicrophone()" class="p-3 text-gray-400 hover:text-gray-200 transition-colors rounded-full flex-shrink-0" title="Dictate prompt">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19 11v1a7 7 0 01-14 0v-1M12 4a3 3 0 00-3 3v4a3 3 0 106 0V7a3 3 0 00-3-3z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 19v3"></path></svg>
+                        </button>
+                    </div>
 
                     <textarea id="messageInput" rows="1" placeholder="Message the AI..." class="w-full py-3.5 px-1 bg-transparent focus:outline-none text-gray-100 placeholder-gray-400 resize-none max-h-48 overflow-y-auto leading-relaxed"></textarea>
                     
-                    <button type="button" onclick="sendMessage()" id="sendBtn" class="p-2 mb-2 mr-2 rounded-xl bg-white text-gray-900 hover:bg-gray-200 transition-colors disabled:opacity-30 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed shadow-sm flex items-center justify-center h-9 w-9 shrink-0">
-                        <svg class="w-5 h-5 translate-y-[1px] -translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24"><path d="M3.478 2.404a.75.75 0 00-.926.941l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.404z"></path></svg>
+                    <button type="button" onclick="handleSendAction()" id="sendBtn" class="p-2 mb-2 mr-2 rounded-xl bg-white text-gray-900 hover:bg-gray-200 transition-colors disabled:opacity-30 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed shadow-sm flex items-center justify-center h-9 w-9 shrink-0">
+                        <!-- Send Icon -->
+                        <svg id="sendIcon" class="w-5 h-5 translate-y-[1px] -translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24"><path d="M3.478 2.404a.75.75 0 00-.926.941l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.404z"></path></svg>
+                        <!-- Stop Icon (Hidden by default) -->
+                        <svg id="stopIcon" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>
                     </button>
                 </div>
                 <div class="text-center mt-2.5">
@@ -328,6 +362,30 @@
             </div>
         </div>
     </main>
+
+    <!-- Side Player Panel -->
+    <aside id="sidePlayerPanel" class="w-0 shrink-0 overflow-hidden bg-[#171717] border-l border-gray-800 flex flex-col absolute right-0 md:relative h-full transition-all duration-300 z-30 shadow-2xl">
+        <div class="flex items-center justify-between p-3.5 border-b border-gray-800 bg-gray-900">
+            <div class="flex items-center gap-2 overflow-hidden pr-2">
+                <svg class="w-5 h-5 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+                <h3 id="sidePlayerTitle" class="text-sm font-semibold text-gray-200 truncate">Video Player</h3>
+            </div>
+            <button onclick="closeSidePlayer()" class="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-800 shrink-0 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <div class="flex-1 w-full flex flex-col bg-black">
+            <div class="w-full aspect-video bg-black relative shadow-lg">
+                <iframe id="sidePlayerIframe" class="w-full h-full border-0 absolute top-0 left-0" src="" allowfullscreen allow="autoplay; encrypted-media"></iframe>
+            </div>
+            <div id="sidePlayerDetails" class="p-5 flex-1 overflow-y-auto bg-gray-900">
+                <h2 id="sidePlayerDescTitle" class="text-lg font-bold text-gray-100 mb-2 leading-tight"></h2>
+                <p id="sidePlayerChannel" class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-1.5"></p>
+                <div class="h-[1px] w-full bg-gray-800 my-4"></div>
+                <p class="text-[13px] text-gray-400">Interact with the chat while watching your video seamlessly.</p>
+            </div>
+        </div>
+    </aside>
 
     <!-- Fullscreen Image Preview Modal -->
     <div id="fullscreenModal" class="fixed inset-0 z-[100] hidden flex-col items-center justify-center bg-black/90 backdrop-blur-md opacity-0 transition-opacity duration-300">
@@ -379,10 +437,17 @@
         // ==========================================
         const renderer = new marked.Renderer();
         renderer.link = function(href, title, text) {
-            // FIX: Safely protect against undefined text during streaming which crashed `.trim()`
-            text = text || ''; 
-            title = title || '';
-            href = href || '';
+            // FIX 1: Safely protect against Marked.js v13+ passing a single token object
+            if (href !== null && typeof href === 'object') {
+                text = href.text || '';
+                title = href.title || '';
+                href = href.href || '';
+            }
+            
+            // FIX 2: Safely cast to string to prevent `.trim()` crashes during streaming
+            text = String(text || ''); 
+            title = String(title || '');
+            href = String(href || '');
 
             let domain = '';
             try { domain = new URL(href).hostname.replace('www.', ''); } catch(e){}
@@ -393,7 +458,8 @@
                 // Pill is NOT a link. Tooltip IS the link.
                 return `<span class="gemini-source-pill"><span class="inline-flex items-center gap-1 bg-[#1a1a1a] hover:bg-[#252525] border border-gray-700/60 px-2 py-[2px] rounded-full transition-colors cursor-default"><span class="text-[10px] font-medium text-gray-400 hover:text-gray-200">${domain}</span></span><a href="${href}" target="_blank" class="gemini-source-tooltip hover:border-gray-500 hover:bg-[#252525] transition-colors"><span class="flex items-center gap-2 mb-1.5"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded-sm bg-white shrink-0"><span class="text-[11px] text-gray-400 font-medium truncate">${domain}</span></span><span class="text-[13px] text-gray-100 font-medium line-clamp-3 leading-snug break-words">${title || domain}</span></a></span>`;
             } else {
-                return `<a href="${href}" target="_blank" class="text-blue-400 hover:text-blue-300 transition-colors">${text}</a>`;
+                // Returns a clean tag so the custom CSS dotted line perfectly applies 
+                return `<a href="${href}" target="_blank">${text}</a>`;
             }
         };
         marked.use({ renderer });
@@ -469,57 +535,138 @@
             document.body.removeChild(textArea);
         }
 
-        function transformYouTubeLinks(container) {
-            const links = container.querySelectorAll('a[href*="youtube.com/watch"], a[href*="youtu.be/"]');
-            links.forEach(link => {
-                if (link.dataset.ytTransformed) return;
-                
-                // Do not convert native source pills or their tooltips into video cards!
-                if (link.closest('.gemini-source-pill')) return;
-                if (link.closest('.gemini-source-wrapper')) return;
-                
-                const url = link.href;
-                let videoId = null;
-                try {
-                    if (url.includes('youtube.com/watch')) {
-                        videoId = new URL(url).searchParams.get('v');
-                    } else if (url.includes('youtu.be/')) {
-                        videoId = url.split('youtu.be/')[1].split('?')[0];
-                    }
-                } catch(e) {}
+        // =========================================================================
+        // GEMINI CLONE - YOUTUBE BOTTOM ATTACHMENT RENDERING
+        // =========================================================================
+        window.ytMetadataCache = window.ytMetadataCache || {};
 
-                if (videoId) {
-                    link.dataset.ytTransformed = 'true';
-                    const title = link.textContent || 'YouTube Video';
-                    
-                    const cardHTML = `
-                    <div class="mt-3 mb-4 flex flex-col bg-gray-900 border border-gray-700 rounded-xl overflow-hidden shadow-lg hover:border-gray-500 transition-colors w-full max-w-md">
-                        <div class="relative w-full aspect-video bg-black cursor-pointer group-yt" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${videoId}?autoplay=1\\' frameborder=\\'0\\' allow=\\'autoplay; encrypted-media\\' allowfullscreen></iframe>'">
-                            <img src="https://img.youtube.com/vi/${videoId}/maxresdefault.jpg" onerror="this.src='https://img.youtube.com/vi/${videoId}/hqdefault.jpg'" class="w-full h-full object-cover opacity-80 group-yt-hover:opacity-100 transition-opacity">
-                            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.5)] group-yt-hover:scale-110 transition-transform">
-                                    <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                </div>
-                            </div>
-                            <div class="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/80 px-2 py-1 rounded text-xs font-medium text-white backdrop-blur-sm pointer-events-none">
-                                <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
-                                YouTube
-                            </div>
-                        </div>
-                        <div class="p-3">
-                            <a href="${url}" target="_blank" class="font-medium text-[14px] text-gray-100 line-clamp-2 hover:text-blue-400 transition-colors leading-snug !border-none">${title}</a>
-                        </div>
-                    </div>`;
-                    
-                    const parentLi = link.closest('li');
-                    if (parentLi && parentLi.textContent.trim() === link.textContent.trim()) {
-                        parentLi.style.listStyle = 'none';
-                        parentLi.style.marginLeft = '-1.5rem';
-                        parentLi.style.marginBottom = '0.5rem';
+        function extractYTId(url) {
+            try {
+                if (url.includes('youtube.com/watch')) return new URL(url).searchParams.get('v');
+                if (url.includes('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
+            } catch(e) {}
+            return null;
+        }
+
+        async function updateYouTubeContainer(ytContainer, contentNode, apiVideos = []) {
+            let videoMap = new Map();
+
+            // 1. Prioritize any explicitly passed msg.videos from the API
+            if (apiVideos) {
+                apiVideos.forEach(vid => {
+                    if (vid.video_id) {
+                        videoMap.set(vid.video_id, {
+                            id: vid.video_id,
+                            title: vid.title,
+                            channel: vid.channel,
+                            thumbnail: vid.thumbnail || `https://img.youtube.com/vi/${vid.video_id}/hqdefault.jpg`,
+                            description: vid.description,
+                            url: vid.url || `https://www.youtube.com/watch?v=${vid.video_id}`,
+                            loaded: true
+                        });
                     }
-                    link.outerHTML = cardHTML;
+                });
+            }
+
+            // 2. Discover dynamically generated links in the markdown text
+            const links = contentNode.querySelectorAll('a[href*="youtube.com/watch"], a[href*="youtu.be/"]');
+            links.forEach(link => {
+                if (link.closest('.gemini-source-pill')) return; // ignore reference pills
+                
+                const vidId = extractYTId(link.href);
+                if (vidId && !videoMap.has(vidId)) {
+                    if (window.ytMetadataCache[vidId]) {
+                        videoMap.set(vidId, window.ytMetadataCache[vidId]);
+                    } else {
+                        // Insert placeholder logic & trigger async fetch immediately
+                        videoMap.set(vidId, { id: vidId, url: link.href, loaded: false });
+                        
+                        fetch(`https://noembed.com/embed?url=${encodeURIComponent(link.href)}`)
+                            .then(res => res.json())
+                            .then(data => {
+                                window.ytMetadataCache[vidId] = {
+                                    id: vidId,
+                                    title: data.title || link.textContent || 'YouTube Video',
+                                    channel: data.author_name || 'YouTube',
+                                    thumbnail: data.thumbnail_url || `https://img.youtube.com/vi/${vidId}/hqdefault.jpg`,
+                                    // ADDED: Dynamically generate description fallback
+                                    description: data.description || `Watch this featured video from ${data.author_name || 'YouTube'} directly in the side player. Discover more insights and related content.`,
+                                    url: link.href,
+                                    loaded: true
+                                };
+                                updateYouTubeContainer(ytContainer, contentNode, apiVideos); // Re-trigger UI render when complete
+                            }).catch(() => {
+                                window.ytMetadataCache[vidId] = {
+                                    id: vidId,
+                                    title: link.textContent || 'YouTube Video',
+                                    channel: 'YouTube',
+                                    thumbnail: `https://img.youtube.com/vi/${vidId}/hqdefault.jpg`,
+                                    description: `Click to play this video directly in the side player seamlessly without leaving the chat.`,
+                                    url: link.href,
+                                    loaded: true
+                                };
+                                updateYouTubeContainer(ytContainer, contentNode, apiVideos);
+                            });
+                    }
                 }
             });
+
+            if (videoMap.size === 0) {
+                ytContainer.innerHTML = '';
+                return;
+            }
+
+            // 3. Render the Gemini-Style Attachment Block at the Bottom
+            let html = `
+                <div class="mt-5 bg-[#1f1f1f] rounded-xl overflow-hidden border border-[#333] shadow-sm w-full max-w-3xl">
+                    <div class="px-4 py-3 bg-[#282828] border-b border-[#333] flex items-center gap-2">
+                        <svg class="w-4 h-4 text-[#ff0000]" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+                        <span class="text-[13px] font-semibold text-gray-200 tracking-wide">YouTube</span>
+                    </div>
+                    <div class="flex flex-col">
+            `;
+
+            for (const [vidId, vid] of videoMap.entries()) {
+                if (!vid.loaded) {
+                    // Skeleton loader matches card geometry to prevent layout jumping
+                    html += `
+                        <div class="flex flex-col sm:flex-row gap-4 p-4 border-b border-[#333] last:border-b-0 animate-pulse">
+                            <div class="w-full sm:w-[200px] aspect-video bg-[#2a2a2a] rounded-xl shrink-0"></div>
+                            <div class="flex-1 py-1 space-y-3">
+                                <div class="h-4 bg-[#2a2a2a] rounded w-3/4"></div>
+                                <div class="h-3 bg-[#2a2a2a] rounded w-1/4"></div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const safeTitle = (vid.title || '').replace(/'/g, "\\'");
+                    const safeChannel = (vid.channel || '').replace(/'/g, "\\'");
+                    
+                    // FIXED: Isolated hover using named group (group/yt) to prevent chat wrapper bleed
+                    html += `
+                        <div class="flex flex-col sm:flex-row gap-4 p-4 border-b border-[#333] last:border-b-0 hover:bg-[#2a2a2a] cursor-pointer transition-colors group/yt" onclick="openSidePlayer('${vidId}', '${safeTitle}', '${safeChannel}')">
+                            <div class="relative w-full sm:w-[200px] aspect-video rounded-xl overflow-hidden shrink-0 bg-black shadow-sm">
+                                <img src="${vid.thumbnail}" onerror="this.src='https://img.youtube.com/vi/${vidId}/default.jpg'" class="w-full h-full object-cover opacity-90 group-hover/yt:opacity-100 transition-opacity duration-300">
+                                <div class="absolute inset-0 flex items-center justify-center bg-black/10 group-hover/yt:bg-transparent transition-colors">
+                                    <div class="w-12 h-8 bg-[#ff0000] rounded-lg flex items-center justify-center shadow-lg group-hover/yt:scale-105 transition-transform">
+                                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col justify-start overflow-hidden py-0.5">
+                                <h4 class="text-[14.5px] font-medium text-gray-100 line-clamp-2 leading-snug group-hover/yt:text-blue-400 transition-colors">${vid.title}</h4>
+                                <div class="mt-1.5 flex items-center gap-1.5">
+                                    <span class="text-[12px] font-medium text-gray-400 truncate bg-gray-800 border border-gray-700 px-1.5 py-0.5 rounded-sm">${vid.channel}</span>
+                                </div>
+                                ${vid.description ? `<p class="text-[12.5px] text-gray-400 mt-2 line-clamp-2 leading-relaxed hidden sm:block group-hover/yt:text-gray-300 transition-colors">${vid.description}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            html += `</div></div>`;
+            ytContainer.innerHTML = html;
         }
 
         function applyMonacoEditors(container) {
@@ -632,6 +779,124 @@
         let isGenerating = false;
         let isRegeneratingFlag = false; // Flag for Smart Regeneration Prompt Injection
         let isEditingFlag = false; // Flag for Smart Edit Prompt Injection
+        let abortController = null; // Controller for Aborting requests
+
+        // Speech Recognition Setup
+        let speechRecognition = null;
+        let isRecording = false;
+        let transcriptBase = ''; // Anchor to prevent interim result echo duplication
+
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            speechRecognition = new SpeechRec();
+            speechRecognition.continuous = true;
+            speechRecognition.interimResults = true;
+            
+            speechRecognition.onresult = (event) => {
+                let interimTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        // Append to base ONLY when final
+                        transcriptBase += event.results[i][0].transcript;
+                    } else {
+                        // Hold interim guess temporarily
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                
+                const input = document.getElementById('messageInput');
+                // Reconstruct exactly what it should be (Base + current live guess)
+                input.value = transcriptBase + interimTranscript;
+                input.dispatchEvent(new Event('input')); // Trigger resize and state updates
+                input.scrollTop = input.scrollHeight;
+            };
+
+            speechRecognition.onerror = (event) => {
+                console.error("Speech recognition error", event.error);
+                stopMicrophone();
+                if(event.error !== 'no-speech') showToast("Microphone error: " + event.error);
+            };
+
+            speechRecognition.onend = () => {
+                if (isRecording) {
+                    // Auto-restart if browser stops it temporarily (unless user clicked stop)
+                    speechRecognition.start();
+                }
+            };
+        } else {
+            // Hide mic button if unsupported
+            document.getElementById('micBtn').style.display = 'none';
+        }
+
+        function toggleMicrophone() {
+            const micBtn = document.getElementById('micBtn');
+            if (isRecording) {
+                stopMicrophone();
+            } else {
+                if(speechRecognition) {
+                    isRecording = true;
+                    
+                    // Capture whatever is already typed into the input before starting mic
+                    const input = document.getElementById('messageInput');
+                    transcriptBase = input.value;
+                    if (transcriptBase.length > 0 && !transcriptBase.endsWith(' ')) {
+                        transcriptBase += ' '; // Add space for natural sentence flow
+                    }
+
+                    speechRecognition.start();
+                    micBtn.classList.add('mic-recording');
+                    micBtn.classList.remove('text-gray-400');
+                } else {
+                    showToast("Speech recognition not supported in this browser.");
+                }
+            }
+        }
+
+        function stopMicrophone() {
+            if (speechRecognition && isRecording) {
+                isRecording = false;
+                speechRecognition.stop();
+                const micBtn = document.getElementById('micBtn');
+                micBtn.classList.remove('mic-recording');
+                micBtn.classList.add('text-gray-400');
+            }
+        }
+
+
+        // Side Player Panel Controls
+        function openSidePlayer(videoId, title, channel = '') {
+            const panel = document.getElementById('sidePlayerPanel');
+            const iframe = document.getElementById('sidePlayerIframe');
+            const titleEl = document.getElementById('sidePlayerTitle');
+            const descTitle = document.getElementById('sidePlayerDescTitle');
+            const channelEl = document.getElementById('sidePlayerChannel');
+
+            titleEl.textContent = title || 'Video Player';
+            descTitle.textContent = title || '';
+            channelEl.innerHTML = channel ? `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> ${channel}` : '';
+            
+            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+            
+            // Expand Panel Width
+            panel.classList.remove('w-0');
+            if (window.innerWidth < 768) {
+                panel.classList.add('w-full'); // Mobile full width
+            } else {
+                panel.classList.add('w-[380px]', 'lg:w-[450px]'); 
+            }
+        }
+
+        function closeSidePlayer() {
+            const panel = document.getElementById('sidePlayerPanel');
+            const iframe = document.getElementById('sidePlayerIframe');
+            
+            panel.classList.add('w-0');
+            panel.classList.remove('w-full', 'w-[380px]', 'lg:w-[450px]');
+            
+            // Allow transition to finish before unloading
+            setTimeout(() => { iframe.src = ''; }, 300);
+        }
 
         function openImageModal(url, title) {
             const modal = document.getElementById('fullscreenModal');
@@ -754,15 +1019,29 @@
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 192) + 'px'; 
             if(this.value.trim() === '') this.style.height = 'auto';
-            sendBtn.disabled = this.value.trim() === '' && selectedFiles.length === 0;
+            updateSendButtonState();
         });
 
         messageInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                if (!sendBtn.disabled && !isGenerating) sendMessage();
+                // Check if button is disabled specifically because of empty content. 
+                // If it's generating, we want to allow stopping it, but pressing enter to stop might be weird. Let's just allow click for stop.
+                if (!isGenerating && (this.value.trim() !== '' || selectedFiles.length > 0)) {
+                    handleSendAction();
+                }
             }
         });
+
+        function updateSendButtonState() {
+            const hasContent = messageInput.value.trim() !== '' || selectedFiles.length > 0;
+            // Ensure button is clickable if we are generating (to stop it), or if there is content.
+            if (isGenerating) {
+                sendBtn.disabled = false;
+            } else {
+                sendBtn.disabled = !hasContent;
+            }
+        }
 
         function toggleSidebar() {
             sidebar.classList.toggle('-translate-x-full');
@@ -811,12 +1090,11 @@
             const container = document.getElementById('attachmentsPreview');
             if (selectedFiles.length === 0) {
                 container.classList.add('hidden');
-                sendBtn.disabled = messageInput.value.trim() === '';
+                updateSendButtonState();
                 return;
             }
             
             container.classList.remove('hidden');
-            sendBtn.disabled = false;
             container.innerHTML = '';
             
             selectedFiles.forEach((file, index) => {
@@ -842,6 +1120,7 @@
                 `;
                 container.appendChild(wrapper);
             });
+            updateSendButtonState();
         }
 
         function removeAttachment(index) {
@@ -1007,7 +1286,8 @@
         function createBubbleNode(role, isLastAI = false, index = -1) {
             const wrapper = document.createElement('div');
             wrapper.id = `msg-wrapper-${index}`;
-            wrapper.className = `w-full flex justify-center py-5 ${role === 'user' ? 'px-4 group' : 'px-4 group'}`;
+            // FIXED: Added named group `group/msg` to prevent hover effect bleed!
+            wrapper.className = `w-full flex justify-center py-5 ${role === 'user' ? 'px-4 group/msg' : 'px-4 group/msg'}`;
 
             const container = document.createElement('div');
             container.className = `w-full max-w-3xl flex gap-4 md:gap-6 ${role === 'user' ? 'justify-end' : ''}`;
@@ -1020,7 +1300,8 @@
                 bubble.className = 'user-bubble-content bg-gray-800 text-gray-100 rounded-3xl px-5 py-3 shadow-sm whitespace-pre-wrap w-fit break-words';
                 
                 const actionBar = document.createElement('div');
-                actionBar.className = 'user-action-bar mt-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pr-3';
+                // FIXED: Now specifically triggers only when the parent group/msg is hovered
+                actionBar.className = 'user-action-bar mt-1.5 flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-200 pr-3';
                 actionBar.innerHTML = `
                     <button onclick="showEditUI(${index})" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors" title="Edit">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -1047,8 +1328,12 @@
                 const bubble = document.createElement('div');
                 bubble.className = 'markdown-body pt-1';
                 
+                const youtubeContainer = document.createElement('div');
+                youtubeContainer.className = 'youtube-attachments-container w-full empty:hidden';
+
                 const actionBar = document.createElement('div');
-                actionBar.className = 'mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200';
+                // FIXED: Isolated action bar hover
+                actionBar.className = 'mt-2 flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-200';
                 
                 let actionsHTML = `
                     <button onclick="copyMessageIndex(${index}, this)" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors" title="Copy"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>
@@ -1060,13 +1345,14 @@
                 actionBar.innerHTML = actionsHTML;
 
                 contentCol.appendChild(bubble);
+                contentCol.appendChild(youtubeContainer);
                 contentCol.appendChild(actionBar);
                 
                 container.appendChild(avatar);
                 container.appendChild(contentCol);
                 wrapper.appendChild(container);
                 
-                return { wrapper, contentNode: bubble, actionBar };
+                return { wrapper, contentNode: bubble, youtubeContainer, actionBar };
             }
         }
 
@@ -1119,12 +1405,12 @@
                     const processedText = embedInlineCitations(msg.content || '', msg.sources);
                     nodeData.contentNode.innerHTML = marked.parse(processedText);
                     
-                    transformYouTubeLinks(nodeData.contentNode);
                     applyMonacoEditors(nodeData.contentNode);
                     
                     if (msg.images && msg.images.length > 0) {
                         const carouselId = `carousel-${index}`;
-                        let carouselHTML = `<div class="mt-4 relative w-full max-w-lg rounded-xl overflow-hidden bg-[#0d0d0d] border border-gray-700 group shadow-lg">`;
+                        // FIXED: Isolated hover for image carousels using named group `group/carousel`
+                        let carouselHTML = `<div class="mt-4 relative w-full max-w-lg rounded-xl overflow-hidden bg-[#0d0d0d] border border-gray-700 group/carousel shadow-lg">`;
                         
                         carouselHTML += `<div id="${carouselId}-track" class="flex transition-transform duration-300 ease-out" style="transform: translateX(0%); width: 100%;">`;
                         msg.images.forEach((img, i) => {
@@ -1138,10 +1424,10 @@
                         
                         if (msg.images.length > 1) {
                             carouselHTML += `
-                                <button onclick="window.moveCarousel('${carouselId}', -1, ${msg.images.length})" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="window.moveCarousel('${carouselId}', -1, ${msg.images.length})" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black/80 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                                 </button>
-                                <button onclick="window.moveCarousel('${carouselId}', 1, ${msg.images.length})" class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="window.moveCarousel('${carouselId}', 1, ${msg.images.length})" class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black/80 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                                 </button>
                                 <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-black/40 px-2 py-1 rounded-full">
@@ -1155,32 +1441,9 @@
                         
                         nodeData.contentNode.insertAdjacentHTML('beforeend', carouselHTML);
                     }
-                    if (msg.videos && msg.videos.length > 0) {
-                        let videoHTML = `<div class="mt-4 grid gap-4 grid-cols-1 md:grid-cols-2">`;
-                        msg.videos.forEach((vid, i) => {
-                            videoHTML += `
-                                <div class="flex flex-col bg-gray-900 border border-gray-700 rounded-xl overflow-hidden shadow-lg hover:border-gray-500 transition-colors">
-                                    <div class="relative w-full aspect-video bg-black cursor-pointer group-yt" onclick="this.innerHTML='<iframe class=\\'w-full h-full\\' src=\\'https://www.youtube.com/embed/${vid.video_id}?autoplay=1\\' frameborder=\\'0\\' allow=\\'autoplay; encrypted-media\\' allowfullscreen></iframe>'">
-                                        <img src="${vid.thumbnail}" class="w-full h-full object-cover opacity-80 group-yt-hover:opacity-100 transition-opacity">
-                                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                            <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.5)] group-yt-hover:scale-110 transition-transform">
-                                                <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="p-3">
-                                        <a href="${vid.url}" target="_blank" class="font-medium text-[14px] text-gray-100 line-clamp-2 hover:text-blue-400 transition-colors leading-snug !border-none">${vid.title}</a>
-                                        <p class="text-xs text-gray-400 mt-1 flex items-center gap-1.5 font-medium">
-                                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                                            ${vid.channel}
-                                        </p>
-                                    </div>
-                                </div>
-                            `;
-                        });
-                        videoHTML += `</div>`;
-                        nodeData.contentNode.insertAdjacentHTML('beforeend', videoHTML);
-                    }
+                    
+                    // Unified YouTube render trigger
+                    updateYouTubeContainer(nodeData.youtubeContainer, nodeData.contentNode, msg.videos);
                 }
                 
                 chatBox.appendChild(nodeData.wrapper);
@@ -1189,9 +1452,46 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
+        // Action Routing for Send/Stop Button
+        function handleSendAction() {
+            if (isGenerating) {
+                if (abortController) {
+                    abortController.abort();
+                    abortController = null;
+                }
+                setGeneratingState(false);
+            } else {
+                sendMessage();
+            }
+        }
+
+        // Toggles Icons based on generation state
+        function setGeneratingState(generating) {
+            isGenerating = generating;
+            const sendIcon = document.getElementById('sendIcon');
+            const stopIcon = document.getElementById('stopIcon');
+            
+            if (generating) {
+                sendBtn.classList.replace('bg-white', 'bg-gray-700');
+                sendBtn.classList.replace('text-gray-900', 'text-white');
+                sendIcon.classList.add('hidden');
+                stopIcon.classList.remove('hidden');
+                sendBtn.disabled = false; // Need to be clickable for stop
+            } else {
+                sendBtn.classList.replace('bg-gray-700', 'bg-white');
+                sendBtn.classList.replace('text-white', 'text-gray-900');
+                stopIcon.classList.add('hidden');
+                sendIcon.classList.remove('hidden');
+                updateSendButtonState();
+            }
+        }
+
         async function sendMessage() {
             const text = messageInput.value.trim();
             if (!text && selectedFiles.length === 0) return;
+            
+            // Auto stop mic if typed/sent manually
+            stopMicrophone();
 
             let msgContent = text;
             if (selectedFiles.length > 0) {
@@ -1224,8 +1524,7 @@
             if (!apiKey) return showToast("API Key is required");
             if (!model) return showToast("Select a model first");
 
-            sendBtn.disabled = true;
-            isGenerating = true;
+            setGeneratingState(true);
             
             renderChat();
 
@@ -1246,6 +1545,8 @@
             let assistantVideos = [];
             let assistantSources = [];
             let hasStartedStreaming = false;
+
+            abortController = new AbortController();
 
             try {
                 // --- SMART INJECTION LOGIC ---
@@ -1304,7 +1605,8 @@
                         messages: apiMessages,
                         stream: useStream,
                         temperature: 0.7
-                    })
+                    }),
+                    signal: abortController.signal
                 });
 
                 if (!response.ok) {
@@ -1350,7 +1652,8 @@
                                         const processedLiveText = embedInlineCitations(fullAssistantText, assistantSources);
                                         streamNode.contentNode.innerHTML = marked.parse(processedLiveText);
                                         
-                                        transformYouTubeLinks(streamNode.contentNode);
+                                        // Unified YouTube trigger handles extraction live
+                                        updateYouTubeContainer(streamNode.youtubeContainer, streamNode.contentNode, assistantVideos);
                                         
                                         if (autoScroll) chatBox.scrollTop = chatBox.scrollHeight;
                                     }
@@ -1394,16 +1697,23 @@
                 saveChatState();
 
             } catch (error) {
-                showToast(error.message);
-                if (messageHistory.length > 0 && messageHistory[messageHistory.length - 1].role === 'user') {
-                    messageHistory.pop();
+                if (error.name === 'AbortError') {
+                    if (fullAssistantText) {
+                        messageHistory.push({ role: "assistant", content: fullAssistantText + "\n\n*[Response stopped by user]*", images: assistantImages, videos: assistantVideos, sources: assistantSources });
+                        saveChatState();
+                    }
+                } else {
+                    showToast(error.message);
+                    if (messageHistory.length > 0 && messageHistory[messageHistory.length - 1].role === 'user') {
+                        messageHistory.pop();
+                    }
+                    saveChatState();
                 }
-                saveChatState();
             } finally {
-                isGenerating = false;
+                setGeneratingState(false);
+                abortController = null;
                 isRegeneratingFlag = false; // Reset flag
                 isEditingFlag = false; // Reset flag
-                sendBtn.disabled = messageInput.value.trim() === '' && selectedFiles.length === 0;
                 messageInput.focus();
                 
                 // Final re-render safely locks everything into place
@@ -1414,6 +1724,7 @@
         function clearChat() {
             messageHistory = [];
             localStorage.removeItem('chatHistory');
+            closeSidePlayer();
             renderChat();
         }
     </script>
