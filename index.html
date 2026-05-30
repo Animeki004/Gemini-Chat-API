@@ -209,6 +209,17 @@
             visibility: visible;
             pointer-events: auto; 
         }
+
+        /* User Message Collapsing */
+        .user-msg-collapse-wrap {
+            max-height: 140px; 
+            overflow: hidden;
+            position: relative;
+            transition: max-height 0.3s ease-in-out;
+        }
+        .user-msg-collapse-wrap.expanded {
+            max-height: 5000px; 
+        }
     </style>
 </head>
 <body class="flex h-screen w-full bg-gray-850">
@@ -526,6 +537,20 @@
                             }
                         }
                     });
+
+                    // Restore initial content if already set before Monaco loaded
+                    if (currentActiveCanvasFile && openCanvases[currentActiveCanvasFile]) {
+                        const data = openCanvases[currentActiveCanvasFile];
+                        if (data.versions && data.versions.length > 0) {
+                            const model = globalCanvasEditor.getModel();
+                            monaco.editor.setModelLanguage(model, data.language);
+                            globalCanvasEditor.setValue(data.versions[data.currentIndex].code);
+                            
+                            if (isCanvasPreviewing) {
+                                updateCanvasPreviewIframe();
+                            }
+                        }
+                    }
                 }
             });
         }
@@ -1022,6 +1047,7 @@ CRITICAL RULES:
                 isNewVersion = true;
                 if (currentActiveCanvasFile !== filename) {
                     currentActiveCanvasFile = filename;
+                    localStorage.setItem('activeCanvasFile', filename);
                 }
                 renderCanvasTabs();
                 updateVersionSwitcherUI();
@@ -1048,14 +1074,31 @@ CRITICAL RULES:
             updatePreviewButtonVisibility(filename);
             
             if (isCanvasPreviewing && currentActiveCanvasFile === filename) {
-                 const now = Date.now();
-                 // Slower throttle for intensive iframe updates to keep stream fast
-                 if (isComplete || now - lastEditorUpdate > 500) { 
+                 // Slower throttle removed to prevent "disco light" blinking
+                 // Only update the actual visual iframe once the code block is completely finished
+                 if (isComplete) { 
                      updateCanvasPreviewIframe();
-                     lastEditorUpdate = now;
                  }
             }
             saveCanvasState();
+        }
+
+        function showCanvasOverlay(text) {
+            const overlay = document.getElementById('canvasLoadingOverlay');
+            const textEl = document.getElementById('canvasLoadingText');
+            if (overlay && textEl) {
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+                textEl.textContent = text;
+            }
+        }
+
+        function hideCanvasOverlay() {
+            const overlay = document.getElementById('canvasLoadingOverlay');
+            if (overlay) {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }
         }
 
         function updatePreviewButtonVisibility(filename) {
@@ -1159,9 +1202,10 @@ CRITICAL RULES:
             renderCanvasTabs();
         }
 
-        function switchCanvasTab(filename) {
+        function switchCanvasTab(filename, forceOpen = true) {
             if (!openCanvases[filename]) return;
             currentActiveCanvasFile = filename;
+            localStorage.setItem('activeCanvasFile', filename);
             renderCanvasTabs();
             
             const data = openCanvases[filename];
@@ -1177,7 +1221,7 @@ CRITICAL RULES:
             updatePreviewButtonVisibility(filename);
             if (isCanvasPreviewing) updateCanvasPreviewIframe();
             
-            openCanvasPanel();
+            if (forceOpen) openCanvasPanel();
         }
 
         function changeCanvasVersion(direction) {
@@ -1283,6 +1327,7 @@ CRITICAL RULES:
         });
 
         function openCanvasPanel() {
+            localStorage.setItem('isCanvasPanelOpen', 'true');
             closeSidePlayer();
             const panel = document.getElementById('canvasPanel');
             const resizer = document.getElementById('resizer');
@@ -1304,6 +1349,7 @@ CRITICAL RULES:
         }
 
         function closeCanvasPanel() {
+            localStorage.setItem('isCanvasPanelOpen', 'false');
             const panel = document.getElementById('canvasPanel');
             const resizer = document.getElementById('resizer');
             
@@ -1362,6 +1408,8 @@ CRITICAL RULES:
 
         function parseCanvasBlocks(parsedHTML, msgIndex, isLastAI, timestamp) {
             let fileCurrentState = {};
+            let shouldOpenPanel = false;
+            let fileToSwitch = null;
             
             // 1. Process Complete Generators (Full Rewrite)
             const completeRegex = /<code_container filename="([^"]+)">([\s\S]*?)<\/code_container>/g;
@@ -1369,6 +1417,8 @@ CRITICAL RULES:
                 fileCurrentState[filename] = code.trim();
                 if (isGenerating && isLastAI) {
                     updateCanvasState(filename, fileCurrentState[filename], true, msgIndex);
+                    shouldOpenPanel = true;
+                    fileToSwitch = filename;
                 } else if (!openCanvases[filename]) {
                     openCanvases[filename] = { versions: [{ msgIndex: msgIndex, code: fileCurrentState[filename] }], currentIndex: 0, language: getLanguageFromFilename(filename), included: true };
                     saveCanvasState();
@@ -1386,6 +1436,8 @@ CRITICAL RULES:
                 
                 if (isGenerating && isLastAI) {
                     updateCanvasState(filename, fileCurrentState[filename], true, msgIndex);
+                    shouldOpenPanel = true;
+                    fileToSwitch = filename;
                 } else if (!openCanvases[filename]) {
                     openCanvases[filename] = { versions: [{ msgIndex: msgIndex, code: fileCurrentState[filename] }], currentIndex: 0, language: getLanguageFromFilename(filename), included: true };
                     saveCanvasState();
@@ -1395,9 +1447,14 @@ CRITICAL RULES:
 
             // 3. Process Incomplete Generators (Streaming Display)
             const incompleteRegex = /<code_container filename="([^"]+)">([\s\S]*)$/g;
+            let hasIncomplete = false;
             parsedHTML = parsedHTML.replace(incompleteRegex, (match, filename, code) => {
                 if (isGenerating && isLastAI) {
                     updateCanvasState(filename, code, false, msgIndex); 
+                    shouldOpenPanel = true;
+                    fileToSwitch = filename;
+                    hasIncomplete = true;
+                    showCanvasOverlay('Generating ' + filename + '...');
                 }
                 return generateCanvasUIPill(filename, true, timestamp, 'create'); 
             });
@@ -1405,10 +1462,28 @@ CRITICAL RULES:
             // 4. Process Incomplete Patches (Streaming Display)
             const incompletePatchRegex = /<code_patch filename="([^"]+)">([\s\S]*)$/g;
             parsedHTML = parsedHTML.replace(incompletePatchRegex, (match, filename) => {
+                if (isGenerating && isLastAI) {
+                    shouldOpenPanel = true;
+                    fileToSwitch = filename;
+                    hasIncomplete = true;
+                    showCanvasOverlay('Applying patch to ' + filename + '...');
+                }
                 // Do not live-update the actual editor code since partial patches destroy structure. 
                 // Only show the animated "Applying Patch" pill while streaming.
                 return generateCanvasUIPill(filename, true, timestamp, 'patch'); 
             });
+
+            if (isGenerating && isLastAI && !hasIncomplete) {
+                hideCanvasOverlay();
+            }
+
+            if (shouldOpenPanel) {
+                if (fileToSwitch && currentActiveCanvasFile !== fileToSwitch && openCanvases[fileToSwitch]) {
+                    switchCanvasTab(fileToSwitch, true);
+                } else {
+                    openCanvasPanel();
+                }
+            }
 
             return parsedHTML;
         }
@@ -2020,10 +2095,11 @@ CRITICAL RULES:
                 const nodeData = createBubbleNode(msg.role, isLastAI, index);
                 
                 if (msg.role === 'user') {
+                    let text = '';
+                    let html = '';
+                    
                     if (Array.isArray(msg.content)) {
-                        let text = msg.content.find(c => c.type === 'text')?.text || '';
-                        let html = '';
-                        
+                        text = msg.content.find(c => c.type === 'text')?.text || '';
                         const attachments = msg.content.filter(c => c.type === 'file_url' || c.type === 'image_url');
                         if (attachments.length > 0) {
                             html += `<div class="flex flex-wrap gap-2 mb-3 justify-end">`;
@@ -2044,11 +2120,64 @@ CRITICAL RULES:
                             });
                             html += `</div>`;
                         }
-                        
-                        if (text) html += `<div>${text}</div>`;
-                        nodeData.contentNode.innerHTML = html;
                     } else {
-                        nodeData.contentNode.textContent = msg.content;
+                        text = msg.content || '';
+                    }
+
+                    nodeData.contentNode.innerHTML = html;
+
+                    if (text) {
+                        const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({
+                            '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+                        }[tag] || tag));
+                        
+                        const safeText = escapeHTML(text);
+                        const lines = text.split('\n').length;
+                        // Smart detection: Collapse if > 5 lines or > 400 characters
+                        const isLong = lines > 5 || text.length > 400;
+
+                        if (isLong) {
+                            const textWrapper = document.createElement('div');
+                            textWrapper.className = 'flex flex-col items-end w-full';
+                            
+                            const container = document.createElement('div');
+                            container.className = 'relative user-msg-collapse-wrap collapsed w-full text-left';
+                            
+                            const textInner = document.createElement('div');
+                            textInner.className = 'whitespace-pre-wrap';
+                            textInner.textContent = text; 
+                            
+                            container.appendChild(textInner);
+                            
+                            const toggleBtn = document.createElement('button');
+                            toggleBtn.className = 'mt-3 mb-1 text-gray-400 hover:text-white flex items-center justify-center transition-colors bg-gray-700/50 hover:bg-gray-600 w-7 h-7 rounded-full flex-shrink-0 border border-gray-600/50 self-center shadow-sm';
+                            toggleBtn.title = 'Expand Message';
+                            toggleBtn.innerHTML = `<svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                            
+                            toggleBtn.onclick = () => {
+                                const isCollapsed = container.classList.contains('collapsed');
+                                if (isCollapsed) {
+                                    container.classList.remove('collapsed');
+                                    container.classList.add('expanded');
+                                    toggleBtn.title = 'Collapse Message';
+                                    toggleBtn.innerHTML = `<svg class="w-4 h-4 rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                                } else {
+                                    container.classList.add('collapsed');
+                                    container.classList.remove('expanded');
+                                    toggleBtn.title = 'Expand Message';
+                                    toggleBtn.innerHTML = `<svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                                }
+                            };
+                            
+                            textWrapper.appendChild(container);
+                            textWrapper.appendChild(toggleBtn);
+                            nodeData.contentNode.appendChild(textWrapper);
+                        } else {
+                            const textDiv = document.createElement('div');
+                            textDiv.className = 'whitespace-pre-wrap w-full text-left';
+                            textDiv.textContent = text;
+                            nodeData.contentNode.appendChild(textDiv);
+                        }
                     }
                 } else {
                     let parsedHTML = msg.content || '';
@@ -2299,13 +2428,18 @@ CRITICAL RULES:
                     let assistantVideos = [];
                     let assistantSources = [];
                     let hasStartedStreaming = false;
+                    
+                    // Native fixes for chunked TCP streams and UI freezing
+                    let streamBuffer = '';
+                    let lastDomUpdate = 0;
 
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) break;
                         
-                        const chunkStr = decoder.decode(value, { stream: true });
-                        const lines = chunkStr.split('\n');
+                        streamBuffer += decoder.decode(value, { stream: true });
+                        const lines = streamBuffer.split('\n');
+                        streamBuffer = lines.pop(); // Hold back the last fragmented line securely in the buffer
                         
                         for (let line of lines) {
                             line = line.trim();
@@ -2325,29 +2459,35 @@ CRITICAL RULES:
                                         
                                         fullAssistantText += delta.content;
                                         
-                                        // ----------------------------------------------------
-                                        // CANVAS STREAM PARSER INJECTION
-                                        // ----------------------------------------------------
-                                        let parsedHTML = fullAssistantText;
+                                        const now = Date.now();
+                                        // DOM Thrashing Throttle (Flushes DOM at ~25 FPS to prevent frontend freezing)
+                                        if (now - lastDomUpdate > 40) {
+                                            lastDomUpdate = now;
+                                            
+                                            // ----------------------------------------------------
+                                            // CANVAS STREAM PARSER INJECTION
+                                            // ----------------------------------------------------
+                                            let parsedHTML = fullAssistantText;
 
-                                        // FIX: Strip enclosing markdown backticks to prevent UI Pills from being escaped
-                                        parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*?<\/code_container>)\n?```/g, '$1');
-                                        parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*)$/g, '$1');
-                                        parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*?<\/code_patch>)\n?```/g, '$1');
-                                        parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*)$/g, '$1');
-                                        
-                                        // Process dynamic workspace blocks through our abstract parser
-                                        parsedHTML = parseCanvasBlocks(parsedHTML, messageHistory.length - 1, true, getTimestamp());
+                                            // FIX: Strip enclosing markdown backticks to prevent UI Pills from being escaped
+                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*?<\/code_container>)\n?```/g, '$1');
+                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*)$/g, '$1');
+                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*?<\/code_patch>)\n?```/g, '$1');
+                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*)$/g, '$1');
+                                            
+                                            // Process dynamic workspace blocks through our abstract parser
+                                            parsedHTML = parseCanvasBlocks(parsedHTML, messageHistory.length - 1, true, getTimestamp());
 
-                                        const processedLiveText = embedInlineCitations(parsedHTML, assistantSources);
-                                        streamNode.contentNode.innerHTML = marked.parse(processedLiveText);
-                                        
-                                        updateYouTubeContainer(streamNode.youtubeContainer, streamNode.contentNode, assistantVideos);
-                                        
-                                        if (autoScroll) {
-                                            requestAnimationFrame(() => {
-                                                chatBox.scrollTop = chatBox.scrollHeight;
-                                            });
+                                            const processedLiveText = embedInlineCitations(parsedHTML, assistantSources);
+                                            streamNode.contentNode.innerHTML = marked.parse(processedLiveText);
+                                            
+                                            updateYouTubeContainer(streamNode.youtubeContainer, streamNode.contentNode, assistantVideos);
+                                            
+                                            if (autoScroll) {
+                                                requestAnimationFrame(() => {
+                                                    chatBox.scrollTop = chatBox.scrollHeight;
+                                                });
+                                            }
                                         }
                                     }
                                     
@@ -2411,8 +2551,11 @@ CRITICAL RULES:
                 abortController = null;
                 isRegeneratingFlag = false; 
                 isEditingFlag = false; 
-                messageInput.focus();
                 
+                hideCanvasOverlay();
+                if (isCanvasPreviewing) updateCanvasPreviewIframe();
+                
+                messageInput.focus();
                 renderChat();
             }
         }
@@ -2435,7 +2578,15 @@ CRITICAL RULES:
         // Apply persistent state on page load
         window.addEventListener('DOMContentLoaded', () => {
             if (Object.keys(openCanvases).length > 0) {
-                switchCanvasTab(Object.keys(openCanvases)[0]);
+                const savedFile = localStorage.getItem('activeCanvasFile');
+                const shouldOpen = localStorage.getItem('isCanvasPanelOpen') !== 'false'; // defaults to true if unassigned
+                
+                let fileToLoad = Object.keys(openCanvases)[0];
+                if (savedFile && openCanvases[savedFile]) {
+                    fileToLoad = savedFile;
+                }
+                
+                switchCanvasTab(fileToLoad, shouldOpen);
             }
         });
     </script>
