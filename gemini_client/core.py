@@ -2,6 +2,7 @@
 #########################################
 # Code Modified to use curl_cffi & robust text extraction with Delta Streaming
 # Upgraded with Dynamic File Upload Support (Multiple Files + Auto Type Detection)
+# FIXED: Increased timeout to 120s to support slow/heavy Pro models in Canvas Mode
 #########################################
 import asyncio
 import json
@@ -113,7 +114,7 @@ class Chatbot:
         cookie_path: str,
         auto_cookie: bool = False,
         proxy: Optional[Union[str, Dict[str, str]]] = None,
-        timeout: int = 20,
+        timeout: int = 120, # Increased from 20s to 120s for Pro models
         model: Model = Model.UNSPECIFIED,
         impersonate: str = "chrome110"
     ):
@@ -189,7 +190,7 @@ class AsyncChatbot:
         secure_1psid: str,
         secure_1psidts: str,
         proxy: Optional[Union[str, Dict[str, str]]] = None,
-        timeout: int = 20,
+        timeout: int = 120, # Increased from 20s to 120s for Pro models
         model: Model = Model.UNSPECIFIED,
         impersonate: str = "chrome110",
     ):
@@ -236,7 +237,7 @@ class AsyncChatbot:
         secure_1psid: str,
         secure_1psidts: str,
         proxy: Optional[Union[str, Dict[str, str]]] = None,
-        timeout: int = 20,
+        timeout: int = 120, # Increased from 20s to 120s for Pro models
         model: Model = Model.UNSPECIFIED,
         impersonate: str = "chrome110",
     ) -> "AsyncChatbot":

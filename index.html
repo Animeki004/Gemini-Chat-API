@@ -16,6 +16,7 @@
                 extend: {
                     fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'] },
                     colors: {
+                        brand: { 500: '#3b82f6', 600: '#2563eb' },
                         gray: {
                             800: '#2f2f2f',
                             850: '#212121',
@@ -262,18 +263,25 @@
                 <textarea id="systemPrompt" rows="3" placeholder="You are a helpful AI assistant..." class="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-gray-500 text-sm text-gray-200 placeholder-gray-500 transition-colors resize-y min-h-[80px]"></textarea>
             </div>
 
-            <!-- Stream Toggle Section -->
-            <div class="space-y-1.5 pt-4 border-t border-gray-800">
+            <!-- Settings Toggles -->
+            <div class="space-y-3 pt-4 border-t border-gray-800">
                 <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-300 pl-1 group">
-                    <input type="checkbox" id="streamToggle" class="w-4 h-4 rounded bg-gray-800 border-gray-700 text-blue-500 focus:ring-blue-600 focus:ring-offset-gray-900 transition-colors">
+                    <input type="checkbox" id="streamToggle" class="w-4 h-4 rounded bg-gray-800 border-gray-700 text-brand-500 focus:ring-brand-600 focus:ring-offset-gray-900 transition-colors">
                     <span class="group-hover:text-white transition-colors">Stream Responses</span>
+                </label>
+                <label class="flex items-center justify-between cursor-pointer text-sm text-gray-300 pl-1 pr-1 group">
+                    <span class="group-hover:text-white transition-colors">Enable Canvas Mode</span>
+                    <div class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="canvasToggle" class="sr-only peer" checked onchange="toggleCanvasMode()">
+                        <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500"></div>
+                    </div>
                 </label>
             </div>
         </div>
         
         <div class="p-4 border-t border-gray-800">
             <div class="flex items-center gap-3 px-2">
-                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+                <div class="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white font-bold text-sm">
                     U
                 </div>
                 <div class="text-sm font-medium text-gray-200">User Session</div>
@@ -364,7 +372,7 @@
         </div>
     </main>
 
-    <!-- Side Player Panel -->
+    <!-- Right Side Player Panel (YouTube) -->
     <aside id="sidePlayerPanel" class="w-0 shrink-0 overflow-hidden bg-[#171717] border-l border-gray-800 flex flex-col absolute right-0 md:relative h-full transition-all duration-300 z-30 shadow-2xl">
         <div class="flex items-center justify-between p-3.5 border-b border-gray-800 bg-gray-900">
             <div class="flex items-center gap-2 overflow-hidden pr-2">
@@ -386,6 +394,37 @@
                 <p class="text-[13px] text-gray-400">Interact with the chat while watching your video seamlessly.</p>
             </div>
         </div>
+    </aside>
+
+    <!-- Right Side Canvas Panel (Workspace) -->
+    <aside id="canvasPanel" class="w-0 shrink-0 overflow-hidden bg-[#171717] border-l border-gray-800 flex flex-col absolute right-0 md:relative h-full transition-all duration-300 z-30 shadow-2xl">
+        <!-- Header / Tabs Container -->
+        <div class="bg-gray-900 border-b border-gray-800 flex items-center pr-2">
+            <div id="canvasTabs" class="flex-1 flex overflow-x-auto scrollbar-hide">
+                <!-- Tabs injected here -->
+            </div>
+            <button onclick="closeCanvasPanel()" class="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 shrink-0 ml-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <!-- Canvas Action Bar -->
+        <div class="bg-gray-850 px-4 py-2 border-b border-gray-800 flex items-center justify-between text-sm shadow-sm z-10">
+            <label class="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white group">
+                <input type="checkbox" id="canvasIncludeCheck" onchange="toggleCurrentCanvasInclude()" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-brand-500 focus:ring-0">
+                <span>Include in Chat Context</span>
+                <span class="text-[10px] bg-gray-700 px-1.5 py-0.5 rounded text-gray-400 group-hover:text-gray-200">Crucial</span>
+            </label>
+            <div class="flex gap-2">
+                <button onclick="copyCurrentCanvas()" class="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    Copy
+                </button>
+            </div>
+        </div>
+
+        <!-- Global Monaco Editor Container for Canvas -->
+        <div id="globalCanvasMonaco" class="flex-1 w-full h-full relative bg-[#1e1e1e]"></div>
     </aside>
 
     <!-- Fullscreen Image Preview Modal -->
@@ -415,6 +454,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
     <script>
         let monacoThemeDefined = false;
+        let globalCanvasEditor = null; // Holds the global canvas workspace instance
 
         require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
         require(['vs/editor/editor.main'], function() {
@@ -431,6 +471,18 @@
                 }
             });
             monacoThemeDefined = true;
+
+            // Initialize the persistent global canvas editor
+            globalCanvasEditor = monaco.editor.create(document.getElementById('globalCanvasMonaco'), {
+                value: "// Canvas Ready",
+                language: "javascript",
+                theme: 'modern-dark',
+                automaticLayout: true,
+                minimap: { enabled: false }, // keep simple for the sidebar
+                fontSize: 14,
+                fontFamily: "'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace",
+                padding: { top: 16 }
+            });
         });
 
         // ==========================================
@@ -775,19 +827,167 @@
 
     <!-- Main Application Logic -->
     <script>
+        // ==========================================
+        // CANVAS ARCHITECTURE STATE 
+        // ==========================================
+        let openCanvases = {}; 
+        let currentActiveCanvasFile = null;
+        let isCanvasModeEnabled = true;
+        let lastEditorUpdate = 0; // NEW: Added throttle timer for Monaco
+
+        const CANVAS_INSTRUCTION_PROMPT = `[CANVAS MODE ACTIVE]
+You are operating in a Canvas Workspace UI. 
+Whenever you are asked to generate, write, update, or modify ANY code, you MUST output the complete, updated file wrapped inside specialized XML tags.
+
+FORMAT:
+<canvas filename="main.py">
+# Complete code goes here
+</canvas>
+
+RULES:
+1. ALWAYS provide the FULL, complete code inside the <canvas> tags so the UI editor can replace the file entirely. Do not just send snippets.
+2. DO NOT use markdown code blocks (\`\`\`) for the files, ONLY use the <canvas> tags.
+3. You can still use regular text outside the <canvas> tags to explain your thought process.`;
+
+        // Canvas Functions
+        function toggleCanvasMode() {
+            isCanvasModeEnabled = document.getElementById('canvasToggle').checked;
+        }
+
+        function getLanguageFromFilename(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const map = { 'js': 'javascript', 'ts': 'typescript', 'py': 'python', 'html': 'html', 'css': 'css', 'json': 'json', 'md': 'markdown' };
+            return map[ext] || 'plaintext';
+        }
+
+        function updateCanvasState(filename, code, isComplete = false) {
+            if (!openCanvases[filename]) {
+                openCanvases[filename] = { code: "", language: getLanguageFromFilename(filename), included: true };
+                currentActiveCanvasFile = filename; 
+                renderCanvasTabs();
+                openCanvasPanel();
+            }
+            openCanvases[filename].code = code;
+            
+            if (currentActiveCanvasFile === filename && globalCanvasEditor) {
+                const now = Date.now();
+                // FIX: Throttle Monaco updates to ~15 FPS to prevent massive UI lag!
+                // Only update every 65ms, or immediately if the generation is complete.
+                if (isComplete || now - lastEditorUpdate > 65) {
+                    const currentVal = globalCanvasEditor.getValue();
+                    if (currentVal !== code) {
+                        globalCanvasEditor.setValue(code);
+                        
+                        // Bonus: Auto-scroll Monaco to bottom as code streams in
+                        if (!isComplete) {
+                            const lineCount = globalCanvasEditor.getModel().getLineCount();
+                            globalCanvasEditor.revealLineNearTop(lineCount);
+                        }
+                    }
+                    lastEditorUpdate = now;
+                }
+            }
+        }
+
+        function renderCanvasTabs() {
+            const tabContainer = document.getElementById('canvasTabs');
+            tabContainer.innerHTML = '';
+            
+            Object.keys(openCanvases).forEach(filename => {
+                const isActive = (filename === currentActiveCanvasFile);
+                const tab = document.createElement('button');
+                tab.onclick = () => switchCanvasTab(filename);
+                tab.className = `px-4 py-3 text-sm font-medium border-r border-gray-800 transition-colors flex items-center gap-2 max-w-[150px]
+                                ${isActive ? 'bg-[#1e1e1e] text-white border-b-2 border-b-brand-500' : 'bg-gray-900 text-gray-400 hover:bg-gray-800'}`;
+                
+                const dotHtml = openCanvases[filename].included 
+                    ? `<div class="w-1.5 h-1.5 rounded-full bg-brand-500" title="Included in Context"></div>` 
+                    : `<div class="w-1.5 h-1.5 rounded-full bg-gray-600"></div>`;
+
+                tab.innerHTML = `${dotHtml} <span class="truncate">${filename}</span>`;
+                tabContainer.appendChild(tab);
+            });
+        }
+
+        function switchCanvasTab(filename) {
+            if (!openCanvases[filename]) return;
+            currentActiveCanvasFile = filename;
+            renderCanvasTabs();
+            
+            if (globalCanvasEditor) {
+                const model = globalCanvasEditor.getModel();
+                monaco.editor.setModelLanguage(model, openCanvases[filename].language);
+                globalCanvasEditor.setValue(openCanvases[filename].code);
+            }
+            document.getElementById('canvasIncludeCheck').checked = openCanvases[filename].included;
+            openCanvasPanel();
+        }
+
+        function toggleCurrentCanvasInclude() {
+            if (!currentActiveCanvasFile) return;
+            openCanvases[currentActiveCanvasFile].included = document.getElementById('canvasIncludeCheck').checked;
+            renderCanvasTabs(); 
+        }
+
+        function copyCurrentCanvas() {
+            if (!currentActiveCanvasFile || !globalCanvasEditor) return;
+            navigator.clipboard.writeText(globalCanvasEditor.getValue());
+            showToast('Code copied to clipboard!', 'success');
+        }
+
+        function openCanvasPanel() {
+            // Ensure YouTube panel is closed before opening Canvas to prevent clipping
+            closeSidePlayer();
+            
+            const panel = document.getElementById('canvasPanel');
+            panel.classList.remove('w-0');
+            if (window.innerWidth < 768) { panel.classList.add('w-full'); } 
+            else { panel.classList.add('w-1/2', 'lg:w-[600px]'); }
+        }
+
+        function closeCanvasPanel() {
+            const panel = document.getElementById('canvasPanel');
+            panel.classList.add('w-0');
+            panel.classList.remove('w-full', 'w-1/2', 'lg:w-[600px]');
+        }
+
+        function generateCanvasUIPill(filename, isStreaming) {
+            if (isStreaming) {
+                return `
+                <div class="my-4 p-4 border border-brand-500/50 bg-brand-500/10 rounded-xl flex items-center gap-3 shadow-sm animate-pulse w-full max-w-sm">
+                    <div class="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+                    <div class="font-medium text-gray-200 text-sm">Generating Canvas: <span class="font-mono text-brand-400">${filename}</span>...</div>
+                </div>`;
+            } else {
+                return `
+                <div class="my-4 p-4 border border-gray-700 bg-gray-800/80 rounded-xl flex items-center justify-between shadow-sm w-full max-w-md">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-6 h-6 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <div class="font-medium text-gray-200 text-sm">Workspace Updated: <span class="font-mono text-brand-400">${filename}</span></div>
+                    </div>
+                    <button onclick="switchCanvasTab('${filename}')" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs font-semibold rounded-lg transition-colors">
+                        View File
+                    </button>
+                </div>`;
+            }
+        }
+
+        // ==========================================
+        // EXISTING LOGIC 
+        // ==========================================
         let messageHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
         let selectedFiles = []; 
         let isGenerating = false;
-        let isRegeneratingFlag = false; // Flag for Smart Regeneration Prompt Injection
-        let isEditingFlag = false; // Flag for Smart Edit Prompt Injection
-        let abortController = null; // Controller for Aborting requests
+        let isRegeneratingFlag = false; 
+        let isEditingFlag = false; 
+        let abortController = null; 
 
         // Speech Recognition Setup
         let speechRecognition = null;
         let isRecording = false;
-        let transcriptBase = ''; // Anchor to prevent interim result echo duplication
-        let isProgrammaticInput = false; // Flag to prevent infinite loops when updating text via script
-        let speechTimeout; // Timer for dynamic mic animation
+        let transcriptBase = ''; 
+        let isProgrammaticInput = false; 
+        let speechTimeout; 
 
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -798,7 +998,6 @@
             speechRecognition.onresult = (event) => {
                 const input = document.getElementById('messageInput');
 
-                // NEW: If the user has highlighted text (like "Select All"), delete it so new speech takes over
                 if (input.selectionStart !== input.selectionEnd) {
                     const start = input.selectionStart;
                     const end = input.selectionEnd;
@@ -806,7 +1005,7 @@
                     if (transcriptBase.length > 0 && !transcriptBase.endsWith(' ')) {
                         transcriptBase += ' ';
                     }
-                    input.setSelectionRange(start, start); // Clear selection
+                    input.setSelectionRange(start, start); 
                 }
 
                 let interimTranscript = '';
@@ -820,24 +1019,21 @@
                     }
                 }
                 
-                // Append final text to our secure base anchor
                 transcriptBase += newFinal;
                 
-                // Flag true so our manual-edit listener ignores this programmatic update
                 isProgrammaticInput = true;
                 input.value = transcriptBase + interimTranscript;
-                input.dispatchEvent(new Event('input')); // Trigger resize and state updates
+                input.dispatchEvent(new Event('input')); 
                 isProgrammaticInput = false;
                 
                 input.scrollTop = input.scrollHeight;
 
-                // Handle dynamic "speaking" animation effect based on real audio results
                 const micBtn = document.getElementById('micBtn');
                 micBtn.classList.add('mic-speaking');
                 clearTimeout(speechTimeout);
                 speechTimeout = setTimeout(() => {
                     micBtn.classList.remove('mic-speaking');
-                }, 400); // Wait 400ms after last word to stop pulsing
+                }, 400); 
             };
 
             speechRecognition.onerror = (event) => {
@@ -851,7 +1047,6 @@
                 micBtn.classList.remove('mic-speaking');
                 
                 if (isRecording) {
-                    // Re-anchor the base before restarting to catch any edge-case edits during the cycle
                     const input = document.getElementById('messageInput');
                     transcriptBase = input.value;
                     if (transcriptBase.length > 0 && !transcriptBase.endsWith(' ')) {
@@ -861,7 +1056,6 @@
                 }
             };
         } else {
-            // Hide mic button if unsupported
             document.getElementById('micBtn').style.display = 'none';
         }
 
@@ -873,11 +1067,10 @@
                 if(speechRecognition) {
                     isRecording = true;
                     
-                    // Capture whatever is already typed into the input before starting mic
                     const input = document.getElementById('messageInput');
                     transcriptBase = input.value;
                     if (transcriptBase.length > 0 && !transcriptBase.endsWith(' ')) {
-                        transcriptBase += ' '; // Add space for natural sentence flow
+                        transcriptBase += ' '; 
                     }
 
                     speechRecognition.start();
@@ -899,9 +1092,11 @@
             }
         }
 
-
-        // Side Player Panel Controls
+        // Side Player Panel Controls Override
         function openSidePlayer(videoId, title, channel = '') {
+            // Ensure Canvas is closed before opening Video Player
+            closeCanvasPanel();
+            
             const panel = document.getElementById('sidePlayerPanel');
             const iframe = document.getElementById('sidePlayerIframe');
             const titleEl = document.getElementById('sidePlayerTitle');
@@ -912,13 +1107,11 @@
             descTitle.textContent = title || '';
             channelEl.innerHTML = channel ? `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> ${channel}` : '';
             
-            // FIX: Use youtube-nocookie to bypass tracking/ad-blocker strict errors
             iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
             
-            // Expand Panel Width
             panel.classList.remove('w-0');
             if (window.innerWidth < 768) {
-                panel.classList.add('w-full'); // Mobile full width
+                panel.classList.add('w-full');
             } else {
                 panel.classList.add('w-[380px]', 'lg:w-[450px]'); 
             }
@@ -931,7 +1124,6 @@
             panel.classList.add('w-0');
             panel.classList.remove('w-full', 'w-[380px]', 'lg:w-[450px]');
             
-            // Allow transition to finish before unloading
             setTimeout(() => { iframe.src = ''; }, 300);
         }
 
@@ -1032,12 +1224,16 @@
         const emptyState = document.getElementById('emptyState');
         const sidebar = document.getElementById('sidebar');
         const mobileOverlay = document.getElementById('mobileOverlay');
+        const canvasToggle = document.getElementById('canvasToggle');
 
         window.onload = () => {
             apiUrlInput.value = localStorage.getItem('apiUrl') || 'http://localhost:8000';
             apiKeyInput.value = localStorage.getItem('apiKey') || '';
             systemPromptInput.value = localStorage.getItem('systemPrompt') || '';
             streamToggle.checked = localStorage.getItem('streamEnabled') !== 'false';
+            
+            isCanvasModeEnabled = localStorage.getItem('canvasEnabled') !== 'false';
+            canvasToggle.checked = isCanvasModeEnabled;
             
             const cachedModels = JSON.parse(localStorage.getItem('cachedModels')) || [];
             if (cachedModels.length > 0) populateModelDropdown(cachedModels, localStorage.getItem('selectedModel'));
@@ -1051,6 +1247,10 @@
         systemPromptInput.addEventListener('input', () => localStorage.setItem('systemPrompt', systemPromptInput.value));
         modelSelect.addEventListener('change', () => localStorage.setItem('selectedModel', modelSelect.value));
         streamToggle.addEventListener('change', () => localStorage.setItem('streamEnabled', streamToggle.checked));
+        canvasToggle.addEventListener('change', () => { 
+            toggleCanvasMode(); 
+            localStorage.setItem('canvasEnabled', canvasToggle.checked);
+        });
 
         messageInput.addEventListener('input', function(e) {
             this.style.height = 'auto';
@@ -1058,16 +1258,11 @@
             if(this.value.trim() === '') this.style.height = 'auto';
             updateSendButtonState();
 
-            // FIX: Smart manual edit detection
-            // If the user manually edits the text while recording, we force an immediate 
-            // reset of the speech cycle so the old interim results don't re-append.
             if (!isProgrammaticInput && isRecording) {
                 transcriptBase = this.value;
                 if (transcriptBase.length > 0 && !transcriptBase.endsWith(' ')) {
                     transcriptBase += ' ';
                 }
-                // Stop abruptly flushes the old speech session. 
-                // The `onend` event catches this and perfectly restarts it using the new base.
                 speechRecognition.stop(); 
             }
         });
@@ -1075,8 +1270,6 @@
         messageInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                // Check if button is disabled specifically because of empty content. 
-                // If it's generating, we want to allow stopping it, but pressing enter to stop might be weird. Let's just allow click for stop.
                 if (!isGenerating && (this.value.trim() !== '' || selectedFiles.length > 0)) {
                     handleSendAction();
                 }
@@ -1085,7 +1278,6 @@
 
         function updateSendButtonState() {
             const hasContent = messageInput.value.trim() !== '' || selectedFiles.length > 0;
-            // Ensure button is clickable if we are generating (to stop it), or if there is content.
             if (isGenerating) {
                 sendBtn.disabled = false;
             } else {
@@ -1336,7 +1528,6 @@
         function createBubbleNode(role, isLastAI = false, index = -1) {
             const wrapper = document.createElement('div');
             wrapper.id = `msg-wrapper-${index}`;
-            // FIXED: Added named group `group/msg` to prevent hover effect bleed!
             wrapper.className = `w-full flex justify-center py-5 ${role === 'user' ? 'px-4 group/msg' : 'px-4 group/msg'}`;
 
             const container = document.createElement('div');
@@ -1350,7 +1541,6 @@
                 bubble.className = 'user-bubble-content bg-gray-800 text-gray-100 rounded-3xl px-5 py-3 shadow-sm whitespace-pre-wrap w-fit break-words';
                 
                 const actionBar = document.createElement('div');
-                // FIXED: Now specifically triggers only when the parent group/msg is hovered
                 actionBar.className = 'user-action-bar mt-1.5 flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-200 pr-3';
                 actionBar.innerHTML = `
                     <button onclick="showEditUI(${index})" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors" title="Edit">
@@ -1382,7 +1572,6 @@
                 youtubeContainer.className = 'youtube-attachments-container w-full empty:hidden';
 
                 const actionBar = document.createElement('div');
-                // FIXED: Isolated action bar hover
                 actionBar.className = 'mt-2 flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-200';
                 
                 let actionsHTML = `
@@ -1451,15 +1640,27 @@
                         nodeData.contentNode.textContent = msg.content;
                     }
                 } else {
-                    // Pre-process citations dynamically to perfectly embed and highlight text natively
-                    const processedText = embedInlineCitations(msg.content || '', msg.sources);
+                    // PRE-RENDER CANVAS PROCESSING
+                    let parsedHTML = msg.content || '';
+                    
+                    const completeRegex = /<canvas filename="([^"]+)">([\s\S]*?)<\/canvas>/g;
+                    parsedHTML = parsedHTML.replace(completeRegex, (match, filename, code) => {
+                        return generateCanvasUIPill(filename, false); 
+                    });
+
+                    const incompleteRegex = /<canvas filename="([^"]+)">([\s\S]*)$/g;
+                    parsedHTML = parsedHTML.replace(incompleteRegex, (match, filename, code) => {
+                        return generateCanvasUIPill(filename, true); 
+                    });
+
+                    // Citatations
+                    const processedText = embedInlineCitations(parsedHTML, msg.sources);
                     nodeData.contentNode.innerHTML = marked.parse(processedText);
                     
                     applyMonacoEditors(nodeData.contentNode);
                     
                     if (msg.images && msg.images.length > 0) {
                         const carouselId = `carousel-${index}`;
-                        // FIXED: Isolated hover for image carousels using named group `group/carousel`
                         let carouselHTML = `<div class="mt-4 relative w-full max-w-lg rounded-xl overflow-hidden bg-[#0d0d0d] border border-gray-700 group/carousel shadow-lg">`;
                         
                         carouselHTML += `<div id="${carouselId}-track" class="flex transition-transform duration-300 ease-out" style="transform: translateX(0%); width: 100%;">`;
@@ -1492,7 +1693,6 @@
                         nodeData.contentNode.insertAdjacentHTML('beforeend', carouselHTML);
                     }
                     
-                    // Unified YouTube render trigger
                     updateYouTubeContainer(nodeData.youtubeContainer, nodeData.contentNode, msg.videos);
                 }
                 
@@ -1515,7 +1715,6 @@
             }
         }
 
-        // Toggles Icons based on generation state
         function setGeneratingState(generating) {
             isGenerating = generating;
             const sendIcon = document.getElementById('sendIcon');
@@ -1526,7 +1725,7 @@
                 sendBtn.classList.replace('text-gray-900', 'text-white');
                 sendIcon.classList.add('hidden');
                 stopIcon.classList.remove('hidden');
-                sendBtn.disabled = false; // Need to be clickable for stop
+                sendBtn.disabled = false;
             } else {
                 sendBtn.classList.replace('bg-gray-700', 'bg-white');
                 sendBtn.classList.replace('text-white', 'text-gray-900');
@@ -1540,7 +1739,6 @@
             const text = messageInput.value.trim();
             if (!text && selectedFiles.length === 0) return;
             
-            // Auto stop mic if typed/sent manually
             stopMicrophone();
 
             let msgContent = text;
@@ -1554,7 +1752,6 @@
                 });
             }
 
-            // Input Reset
             messageInput.value = '';
             messageInput.style.height = 'auto';
             selectedFiles = [];
@@ -1575,7 +1772,6 @@
             if (!model) return showToast("Select a model first");
 
             setGeneratingState(true);
-            
             renderChat();
 
             const streamNode = createBubbleNode('assistant', false, messageHistory.length);
@@ -1599,12 +1795,20 @@
             abortController = new AbortController();
 
             try {
-                // --- SMART INJECTION LOGIC ---
+                // --- SMART INJECTION LOGIC (INCLUDES CANVAS CONTEXT) ---
+                let canvasContextString = "";
+                if (isCanvasModeEnabled) {
+                    for (const [filename, data] of Object.entries(openCanvases)) {
+                        if (data.included) {
+                            canvasContextString += `\n\n--- Current Active File: ${filename} ---\n${data.code}\n--- End of ${filename} ---\n`;
+                        }
+                    }
+                }
+
                 const apiMessages = messageHistory.map((m, index) => {
-                    // Only apply wrapper and system prompt to the LAST user message
                     if (m.role === 'user' && index === messageHistory.length - 1) {
                         let textContent = "";
-                        const originalContent = JSON.parse(JSON.stringify(m.content)); // Deep clone
+                        const originalContent = JSON.parse(JSON.stringify(m.content));
                         
                         if (Array.isArray(originalContent)) {
                             const txtObj = originalContent.find(c => c.type === 'text');
@@ -1619,6 +1823,13 @@
                             injectedPrompt += `[SYSTEM INSTRUCTIONS]\n${sysPrompt}\n[/SYSTEM INSTRUCTIONS]\n\n`;
                         }
                         
+                        if (isCanvasModeEnabled) {
+                            injectedPrompt += `${CANVAS_INSTRUCTION_PROMPT}\n\n`;
+                            if (canvasContextString) {
+                                injectedPrompt += `[WORKSPACE STATE]${canvasContextString}[/WORKSPACE STATE]\n\n`;
+                            }
+                        }
+
                         if (isRegeneratingFlag) {
                             injectedPrompt += `[SYSTEM NOTE]\nThe user requested to REGENERATE the previous response. Please provide a new, improved, or alternative answer.\n[/SYSTEM NOTE]\n\n`;
                         } else if (isEditingFlag) {
@@ -1628,10 +1839,9 @@
                         if (injectedPrompt) {
                             injectedPrompt += `[USER REQUEST]\n${textContent}\n[/USER REQUEST]`;
                         } else {
-                            injectedPrompt = textContent; // Fallback if no modifiers are present
+                            injectedPrompt = textContent; 
                         }
 
-                        // Reassemble payload safely
                         if (Array.isArray(originalContent)) {
                             const txtObj = originalContent.find(c => c.type === 'text');
                             if (txtObj) {
@@ -1698,11 +1908,26 @@
                                         
                                         fullAssistantText += delta.content;
                                         
-                                        // Process live citations directly into streaming text
-                                        const processedLiveText = embedInlineCitations(fullAssistantText, assistantSources);
+                                        // ----------------------------------------------------
+                                        // NEW MAGIC: CANVAS STREAM PARSER INJECTION
+                                        // ----------------------------------------------------
+                                        let parsedHTML = fullAssistantText;
+                                        
+                                        const completeRegex = /<canvas filename="([^"]+)">([\s\S]*?)<\/canvas>/g;
+                                        parsedHTML = parsedHTML.replace(completeRegex, (match, filename, code) => {
+                                            updateCanvasState(filename, code.trim(), true);
+                                            return generateCanvasUIPill(filename, false); 
+                                        });
+
+                                        const incompleteRegex = /<canvas filename="([^"]+)">([\s\S]*)$/g;
+                                        parsedHTML = parsedHTML.replace(incompleteRegex, (match, filename, code) => {
+                                            updateCanvasState(filename, code, false); 
+                                            return generateCanvasUIPill(filename, true); 
+                                        });
+
+                                        const processedLiveText = embedInlineCitations(parsedHTML, assistantSources);
                                         streamNode.contentNode.innerHTML = marked.parse(processedLiveText);
                                         
-                                        // Unified YouTube trigger handles extraction live
                                         updateYouTubeContainer(streamNode.youtubeContainer, streamNode.contentNode, assistantVideos);
                                         
                                         if (autoScroll) chatBox.scrollTop = chatBox.scrollHeight;
@@ -1762,11 +1987,10 @@
             } finally {
                 setGeneratingState(false);
                 abortController = null;
-                isRegeneratingFlag = false; // Reset flag
-                isEditingFlag = false; // Reset flag
+                isRegeneratingFlag = false; 
+                isEditingFlag = false; 
                 messageInput.focus();
                 
-                // Final re-render safely locks everything into place
                 renderChat();
             }
         }
@@ -1775,6 +1999,7 @@
             messageHistory = [];
             localStorage.removeItem('chatHistory');
             closeSidePlayer();
+            closeCanvasPanel(); // Also close canvas on clear
             renderChat();
         }
     </script>
