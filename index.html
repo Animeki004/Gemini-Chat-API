@@ -379,10 +379,15 @@
         // ==========================================
         const renderer = new marked.Renderer();
         renderer.link = function(href, title, text) {
+            // FIX: Safely protect against undefined text during streaming which crashed `.trim()`
+            text = text || ''; 
+            title = title || '';
+            href = href || '';
+
             let domain = '';
             try { domain = new URL(href).hostname.replace('www.', ''); } catch(e){}
             
-            const isCitationNum = /^\[?\d+\]?$/.test(text) || text.trim() === 'source';
+            const isCitationNum = /^\[?\d+\]?$/.test(text) || text.trim().toLowerCase() === 'source';
             
             if (isCitationNum) {
                 // Pill is NOT a link. Tooltip IS the link.
@@ -437,12 +442,15 @@
                     unmatchedSources.forEach((item, idx) => {
                         let targetIdx = (idx * 2);
                         if (targetIdx >= sentences.length) targetIdx = sentences.length > 2 ? sentences.length - 2 : 0; 
-                        sentences[targetIdx] = `<span class="gemini-source-wrapper"><span class="gemini-source-text">${sentences[targetIdx]}</span>${item.tooltipHTML}</span>`;
+                        
+                        // FIX: Just seamlessly append the pill to the end of the sentence.
+                        // We DO NOT wrap the sentence in .gemini-source-wrapper, preventing the whole block from turning blue on hover.
+                        sentences[targetIdx] = `${sentences[targetIdx]} ${item.tooltipHTML}`;
                     });
                     processed = sentences.join('');
                 } else {
                     unmatchedSources.forEach(item => {
-                        processed += ` <span class="gemini-source-wrapper">${item.tooltipHTML}</span>`;
+                        processed += ` ${item.tooltipHTML}`;
                     });
                 }
             }
@@ -1043,7 +1051,7 @@
                 actionBar.className = 'mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200';
                 
                 let actionsHTML = `
-                    <button onclick="copyMessageIndex(${index}, this)" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors" title="Copy"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>
+                    <button onclick="copyMessageIndex(${index}, this)" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors" title="Copy"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>
                     <button onclick="replyToMessage(${index})" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors ml-1" title="Reply"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg></button>
                 `;
                 if (isLastAI) {
