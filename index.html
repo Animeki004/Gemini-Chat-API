@@ -981,9 +981,9 @@
             const list = document.getElementById('workspaceFilesList');
             list.innerHTML = '';
             
-            const files = Object.keys(openCanvases);
+            const files = Object.keys(openCanvases).filter(f => !openCanvases[f].closed);
             if (files.length === 0) {
-                list.innerHTML = '<div class="px-4 py-3 text-xs text-gray-500 italic text-center">No files in workspace yet.</div>';
+                list.innerHTML = '<div class="px-4 py-3 text-xs text-gray-500 italic text-center">No active files in workspace.</div>';
                 return;
             }
 
@@ -1077,10 +1077,15 @@
         }
 
         function updateCanvasState(filename, code, isComplete = false, msgIndex = -1) {
+            let isNewOrReopened = false;
+            
             if (!openCanvases[filename]) {
-                openCanvases[filename] = { versions: [], currentIndex: 0, language: getLanguageFromFilename(filename), included: true };
-                renderCanvasTabs();
-                openCanvasPanel();
+                openCanvases[filename] = { versions: [], currentIndex: 0, language: getLanguageFromFilename(filename), included: true, closed: false };
+                isNewOrReopened = true;
+            } else if (openCanvases[filename].closed) {
+                openCanvases[filename].closed = false;
+                openCanvases[filename].included = true;
+                isNewOrReopened = true;
             }
 
             const canvasData = openCanvases[filename];
@@ -1096,10 +1101,15 @@
                     currentActiveCanvasFile = filename;
                     localStorage.setItem('activeCanvasFile', filename);
                 }
-                renderCanvasTabs();
                 updateVersionSwitcherUI();
+                isNewOrReopened = true; // force tab re-render to catch version updates
             } else {
                 versionObj.code = code;
+            }
+
+            if (isNewOrReopened) {
+                renderCanvasTabs();
+                openCanvasPanel();
             }
             
             if (currentActiveCanvasFile === filename && canvasData.currentIndex === canvasData.versions.indexOf(versionObj) && globalCanvasEditor) {
@@ -1212,8 +1222,10 @@
             tabContainer.innerHTML = '';
             
             Object.keys(openCanvases).forEach(filename => {
-                const isActive = (filename === currentActiveCanvasFile);
                 const data = openCanvases[filename];
+                if (data.closed) return; // Hide closed tabs from the UI
+
+                const isActive = (filename === currentActiveCanvasFile);
                 
                 const tab = document.createElement('div');
                 // Updated active tab to perfectly match the seamless #1e1e1e Monaco theme
@@ -1238,18 +1250,25 @@
 
         function closeCanvasFile(e, filename) {
             e.stopPropagation();
-            delete openCanvases[filename];
-            saveCanvasState();
+            // Implement soft-close: instead of deleting, mark it as closed and excluded
+            if (openCanvases[filename]) {
+                openCanvases[filename].closed = true;
+                openCanvases[filename].included = false;
+                saveCanvasState();
+            }
             
             if (currentActiveCanvasFile === filename) {
-                const remainingFiles = Object.keys(openCanvases);
+                // Find next available open file
+                const remainingFiles = Object.keys(openCanvases).filter(f => !openCanvases[f].closed);
                 currentActiveCanvasFile = remainingFiles.length > 0 ? remainingFiles[0] : null;
+                
                 if (currentActiveCanvasFile) {
-                    switchCanvasTab(currentActiveCanvasFile);
+                    switchCanvasTab(currentActiveCanvasFile, false); // Switch without forcing panel open
                 } else {
                     closeCanvasPanel();
                     if (globalCanvasEditor) globalCanvasEditor.setValue('// Canvas Ready');
                     document.getElementById('versionSwitcher').classList.add('hidden');
+                    localStorage.removeItem('activeCanvasFile');
                 }
             }
             renderCanvasTabs();
@@ -1263,6 +1282,14 @@
 
         function switchCanvasTab(filename, forceOpen = true) {
             if (!openCanvases[filename]) return;
+
+            // Soft-reopen if the file was closed but the user manually requests it
+            if (openCanvases[filename].closed) {
+                openCanvases[filename].closed = false;
+                openCanvases[filename].included = true;
+                saveCanvasState();
+            }
+
             currentActiveCanvasFile = filename;
             localStorage.setItem('activeCanvasFile', filename);
             renderCanvasTabs();
@@ -1480,14 +1507,18 @@
             const completeRegex = /<code_container filename="([^"]+)">([\s\S]*?)<\/code_container>/g;
             parsedHTML = parsedHTML.replace(completeRegex, (match, filename, code) => {
                 fileCurrentState[filename] = code.trim();
+                
                 if (isGenerating && isLastAI) {
                     updateCanvasState(filename, fileCurrentState[filename], true, msgIndex);
                     shouldOpenPanel = true;
                     fileToSwitch = filename;
                 } else if (!openCanvases[filename]) {
-                    openCanvases[filename] = { versions: [{ msgIndex: msgIndex, code: fileCurrentState[filename] }], currentIndex: 0, language: getLanguageFromFilename(filename), included: true };
+                    // Safe Historical Parsing: Create naturally if it never existed
+                    openCanvases[filename] = { versions: [{ msgIndex: msgIndex, code: fileCurrentState[filename] }], currentIndex: 0, language: getLanguageFromFilename(filename), included: true, closed: false };
                     saveCanvasState();
                 }
+                
+                // If it already exists (even if closed), we ignore historical chunks so it doesn't magically reopen
                 return generateCanvasUIPill(filename, false, timestamp, 'create'); 
             });
 
@@ -1504,7 +1535,7 @@
                     shouldOpenPanel = true;
                     fileToSwitch = filename;
                 } else if (!openCanvases[filename]) {
-                    openCanvases[filename] = { versions: [{ msgIndex: msgIndex, code: fileCurrentState[filename] }], currentIndex: 0, language: getLanguageFromFilename(filename), included: true };
+                    openCanvases[filename] = { versions: [{ msgIndex: msgIndex, code: fileCurrentState[filename] }], currentIndex: 0, language: getLanguageFromFilename(filename), included: true, closed: false };
                     saveCanvasState();
                 }
                 return generateCanvasUIPill(filename, false, timestamp, 'patch');
@@ -1543,7 +1574,7 @@
             }
 
             if (shouldOpenPanel) {
-                if (fileToSwitch && currentActiveCanvasFile !== fileToSwitch && openCanvases[fileToSwitch]) {
+                if (fileToSwitch && currentActiveCanvasFile !== fileToSwitch && openCanvases[fileToSwitch] && !openCanvases[fileToSwitch].closed) {
                     switchCanvasTab(fileToSwitch, true);
                 } else {
                     openCanvasPanel();
@@ -2451,7 +2482,7 @@
                     let canvasContextString = "";
                     if (isCanvasModeEnabled) {
                         for (const [filename, data] of Object.entries(openCanvases)) {
-                            if (data.included && data.versions.length > 0) {
+                            if (data.included && !data.closed && data.versions.length > 0) {
                                 const activeCode = data.versions[data.currentIndex].code;
                                 canvasContextString += `\n\n--- Current Active File: ${filename} ---\n${activeCode}\n--- End of ${filename} ---\n`;
                             }
@@ -2510,7 +2541,13 @@
 
                     const response = await fetch(`${baseUrl}/v1/chat/completions`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                        headers: { 
+                            'Content-Type': 'application/json', 
+                            'Authorization': `Bearer ${apiKey}`,
+                            'Accept': 'text/event-stream',
+                            'Cache-Control': 'no-cache',
+                            'Connection': 'keep-alive'
+                        },
                         body: JSON.stringify({
                             model: model,
                             messages: apiMessages,
@@ -2547,6 +2584,31 @@
                         // Native fixes for chunked TCP streams and UI freezing
                         let streamBuffer = '';
                         let lastDomUpdate = 0;
+                        let pendingDOMUpdate = false;
+
+                        // Extracted flush logic to guarantee final frame renders!
+                        const flushStreamUI = () => {
+                            let parsedHTML = fullAssistantText;
+                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*?<\/code_container>)\n?```/g, '$1');
+                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*)$/g, '$1');
+                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*?<\/code_patch>)\n?```/g, '$1');
+                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*)$/g, '$1');
+                            
+                            parsedHTML = parseCanvasBlocks(parsedHTML, messageHistory.length - 1, true, getTimestamp());
+
+                            const processedLiveText = embedInlineCitations(parsedHTML, assistantSources);
+                            const textWithThoughts = parseThoughtBlocks(processedLiveText);
+                            streamNode.contentNode.innerHTML = marked.parse(textWithThoughts);
+                            
+                            updateYouTubeContainer(streamNode.youtubeContainer, streamNode.contentNode, assistantVideos);
+                            
+                            if (autoScroll) {
+                                requestAnimationFrame(() => {
+                                    chatBox.scrollTop = chatBox.scrollHeight;
+                                });
+                            }
+                            pendingDOMUpdate = false;
+                        };
 
                         while (true) {
                             const { done, value } = await reader.read();
@@ -2583,31 +2645,13 @@
                                         }
                                         
                                         fullAssistantText += delta.content;
+                                        pendingDOMUpdate = true;
                                         
                                         const now = Date.now();
-                                        // DOM Thrashing Throttle
+                                        // DOM Thrashing Throttle (Guaranteed to unblock via final flush)
                                         if (now - lastDomUpdate > 40) {
                                             lastDomUpdate = now;
-                                            
-                                            let parsedHTML = fullAssistantText;
-                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*?<\/code_container>)\n?```/g, '$1');
-                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*)$/g, '$1');
-                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*?<\/code_patch>)\n?```/g, '$1');
-                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*)$/g, '$1');
-                                            
-                                            parsedHTML = parseCanvasBlocks(parsedHTML, messageHistory.length - 1, true, getTimestamp());
-
-                                            const processedLiveText = embedInlineCitations(parsedHTML, assistantSources);
-                                            const textWithThoughts = parseThoughtBlocks(processedLiveText);
-                                            streamNode.contentNode.innerHTML = marked.parse(textWithThoughts);
-                                            
-                                            updateYouTubeContainer(streamNode.youtubeContainer, streamNode.contentNode, assistantVideos);
-                                            
-                                            if (autoScroll) {
-                                                requestAnimationFrame(() => {
-                                                    chatBox.scrollTop = chatBox.scrollHeight;
-                                                });
-                                            }
+                                            flushStreamUI();
                                         }
                                     }
                                     
@@ -2616,6 +2660,7 @@
                                             const imgUrl = typeof img === 'string' ? img : img.url;
                                             if (!assistantImages.find(e => (typeof e === 'string' ? e : e.url) === imgUrl)) {
                                                 assistantImages.push(img);
+                                                pendingDOMUpdate = true;
                                             }
                                         });
                                     }
@@ -2623,6 +2668,7 @@
                                         delta.videos.forEach(vid => {
                                             if (!assistantVideos.find(e => e.video_id === vid.video_id)) {
                                                 assistantVideos.push(vid);
+                                                pendingDOMUpdate = true;
                                             }
                                         });
                                     }
@@ -2630,11 +2676,17 @@
                                         delta.sources.forEach(src => {
                                             if (!assistantSources.find(e => e.url === src.url)) {
                                                 assistantSources.push(src);
+                                                pendingDOMUpdate = true;
                                             }
                                         });
                                     }
                                 }
                             }
+                        }
+
+                        // GUARANTEED FINAL FRAME RENDER: Prevents skipped tags when stream closes instantly
+                        if (pendingDOMUpdate) {
+                            flushStreamUI();
                         }
 
                         messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages, videos: assistantVideos, sources: assistantSources, timestamp: getTimestamp() });
@@ -2727,12 +2779,13 @@
 
         // Apply persistent state on page load
         window.addEventListener('DOMContentLoaded', () => {
-            if (Object.keys(openCanvases).length > 0) {
+            const availableFiles = Object.keys(openCanvases).filter(f => !openCanvases[f].closed);
+            if (availableFiles.length > 0) {
                 const savedFile = localStorage.getItem('activeCanvasFile');
                 const shouldOpen = localStorage.getItem('isCanvasPanelOpen') !== 'false'; // defaults to true if unassigned
                 
-                let fileToLoad = Object.keys(openCanvases)[0];
-                if (savedFile && openCanvases[savedFile]) {
+                let fileToLoad = availableFiles[0];
+                if (savedFile && openCanvases[savedFile] && !openCanvases[savedFile].closed) {
                     fileToLoad = savedFile;
                 }
                 
