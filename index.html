@@ -2510,13 +2510,7 @@
 
                     const response = await fetch(`${baseUrl}/v1/chat/completions`, {
                         method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json', 
-                            'Authorization': `Bearer ${apiKey}`,
-                            'Accept': 'text/event-stream',
-                            'Cache-Control': 'no-cache',
-                            'Connection': 'keep-alive'
-                        },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
                         body: JSON.stringify({
                             model: model,
                             messages: apiMessages,
@@ -2553,31 +2547,6 @@
                         // Native fixes for chunked TCP streams and UI freezing
                         let streamBuffer = '';
                         let lastDomUpdate = 0;
-                        let pendingDOMUpdate = false;
-
-                        // Extracted flush logic to guarantee final frame renders!
-                        const flushStreamUI = () => {
-                            let parsedHTML = fullAssistantText;
-                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*?<\/code_container>)\n?```/g, '$1');
-                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*)$/g, '$1');
-                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*?<\/code_patch>)\n?```/g, '$1');
-                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*)$/g, '$1');
-                            
-                            parsedHTML = parseCanvasBlocks(parsedHTML, messageHistory.length - 1, true, getTimestamp());
-
-                            const processedLiveText = embedInlineCitations(parsedHTML, assistantSources);
-                            const textWithThoughts = parseThoughtBlocks(processedLiveText);
-                            streamNode.contentNode.innerHTML = marked.parse(textWithThoughts);
-                            
-                            updateYouTubeContainer(streamNode.youtubeContainer, streamNode.contentNode, assistantVideos);
-                            
-                            if (autoScroll) {
-                                requestAnimationFrame(() => {
-                                    chatBox.scrollTop = chatBox.scrollHeight;
-                                });
-                            }
-                            pendingDOMUpdate = false;
-                        };
 
                         while (true) {
                             const { done, value } = await reader.read();
@@ -2614,13 +2583,31 @@
                                         }
                                         
                                         fullAssistantText += delta.content;
-                                        pendingDOMUpdate = true;
                                         
                                         const now = Date.now();
-                                        // DOM Thrashing Throttle (Guaranteed to unblock via final flush)
+                                        // DOM Thrashing Throttle
                                         if (now - lastDomUpdate > 40) {
                                             lastDomUpdate = now;
-                                            flushStreamUI();
+                                            
+                                            let parsedHTML = fullAssistantText;
+                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*?<\/code_container>)\n?```/g, '$1');
+                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*)$/g, '$1');
+                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*?<\/code_patch>)\n?```/g, '$1');
+                                            parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*)$/g, '$1');
+                                            
+                                            parsedHTML = parseCanvasBlocks(parsedHTML, messageHistory.length - 1, true, getTimestamp());
+
+                                            const processedLiveText = embedInlineCitations(parsedHTML, assistantSources);
+                                            const textWithThoughts = parseThoughtBlocks(processedLiveText);
+                                            streamNode.contentNode.innerHTML = marked.parse(textWithThoughts);
+                                            
+                                            updateYouTubeContainer(streamNode.youtubeContainer, streamNode.contentNode, assistantVideos);
+                                            
+                                            if (autoScroll) {
+                                                requestAnimationFrame(() => {
+                                                    chatBox.scrollTop = chatBox.scrollHeight;
+                                                });
+                                            }
                                         }
                                     }
                                     
@@ -2629,7 +2616,6 @@
                                             const imgUrl = typeof img === 'string' ? img : img.url;
                                             if (!assistantImages.find(e => (typeof e === 'string' ? e : e.url) === imgUrl)) {
                                                 assistantImages.push(img);
-                                                pendingDOMUpdate = true;
                                             }
                                         });
                                     }
@@ -2637,7 +2623,6 @@
                                         delta.videos.forEach(vid => {
                                             if (!assistantVideos.find(e => e.video_id === vid.video_id)) {
                                                 assistantVideos.push(vid);
-                                                pendingDOMUpdate = true;
                                             }
                                         });
                                     }
@@ -2645,17 +2630,11 @@
                                         delta.sources.forEach(src => {
                                             if (!assistantSources.find(e => e.url === src.url)) {
                                                 assistantSources.push(src);
-                                                pendingDOMUpdate = true;
                                             }
                                         });
                                     }
                                 }
                             }
-                        }
-
-                        // GUARANTEED FINAL FRAME RENDER: Prevents skipped tags when stream closes instantly
-                        if (pendingDOMUpdate) {
-                            flushStreamUI();
                         }
 
                         messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages, videos: assistantVideos, sources: assistantSources, timestamp: getTimestamp() });
