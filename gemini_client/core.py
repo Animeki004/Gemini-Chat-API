@@ -3,6 +3,8 @@
 # Code Modified to use curl_cffi & robust text extraction with Delta Streaming
 # Upgraded with Dynamic File Upload Support (Multiple Files + Auto Type Detection)
 # FIXED: Increased timeout to 120s to support slow/heavy Pro models in Canvas Mode
+# UPGRADED: Robust Heuristic Thought Extraction for Gemini Thinking Models
+# FIXED: UnboundLocalError for 're' module by fixing import scoping
 #########################################
 import asyncio
 import json
@@ -11,6 +13,7 @@ import random
 import re
 import string
 import mimetypes
+import base64
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Tuple, Union, Optional, AsyncGenerator
@@ -462,8 +465,19 @@ class AsyncChatbot:
             )
             resp.raise_for_status()
 
-            # Keeps track of the length of text we have already yielded so we can emit exact delta "chunks"
+            # State Trackers for delta yielding and thoughts
             prev_content_length = 0
+            previous_thought = ""
+            thought_started = False
+            thought_ended = False
+            full_streamed_text = ""
+
+            def iter_all_strings(obj):
+                if isinstance(obj, str): yield obj
+                elif isinstance(obj, list):
+                    for item in obj: yield from iter_all_strings(item)
+                elif isinstance(obj, dict):
+                    for item in obj.values(): yield from iter_all_strings(item)
 
             async for line in resp.aiter_lines():
                 if isinstance(line, bytes):
@@ -496,6 +510,52 @@ class AsyncChatbot:
                                             return str(item) if item is not None else ""
                                         
                                         content = extract_text(raw_content)
+
+                                    # --- UPGRADED: ROBUST THOUGHT PROCESS EXTRACTION ---
+                                    current_thought = ""
+                                    
+                                    # 1. Targeted Search (Fast Path): Look in known Gemini thinking indices (added 37)
+                                    try:
+                                        for idx in [34, 37, 131, 136, 137]:
+                                            candidates = [body]
+                                            if len(body) > 4 and isinstance(body[4], list): candidates.append(body[4][0] if len(body[4]) > 0 and isinstance(body[4][0], list) else body[4])
+                                            if len(body) > 0 and isinstance(body[0], list): candidates.append(body[0])
+                                            
+                                            for cand in candidates:
+                                                if len(cand) > idx and cand[idx]:
+                                                    val = cand[idx]
+                                                    if isinstance(val, list):
+                                                        if isinstance(val[0], str): current_thought = val[0]
+                                                        elif isinstance(val[0], list) and isinstance(val[0][0], str): current_thought = val[0][0]
+                                                        elif len(val) > 6 and isinstance(val[6], list) and isinstance(val[6][0], str): current_thought = val[6][0]
+                                                    if current_thought: break
+                                            if current_thought: break
+                                    except Exception: pass
+                                    
+                                    # 2. Heuristic Search (Robust Fallback): Find large growing text blocks
+                                    if not current_thought:
+                                        all_strs = list(iter_all_strings(body))
+                                        all_strs.sort(key=len, reverse=True)
+                                        for s in all_strs:
+                                            # Thoughts are large text blocks, distinct from the main text and IDs
+                                            if len(s) > 30 and " " in s and not s.startswith("c_") and not s.startswith("r_") and not s.startswith("rc_"):
+                                                # Ensure it's not just a duplicate of the main response
+                                                if s != content and s != content + "\n":
+                                                    current_thought = s
+                                                    break
+                                                    
+                                    # 3. Base64 Protobuf Search (Extreme Fallback)
+                                    if not current_thought:
+                                        for item in iter_all_strings(body):
+                                            if item.startswith("!O"):
+                                                try:
+                                                    b64 = item[1:] + "=" * (-len(item[1:]) % 4)
+                                                    dec = base64.urlsafe_b64decode(b64)
+                                                    strs = re.findall(b'[\x20-\x7e\n\r]{30,}', dec)
+                                                    if strs: 
+                                                        current_thought = "\n".join([s.decode('utf-8', errors='ignore') for s in strs])
+                                                        break
+                                                except: pass
 
                                     images = []
                                     def extract_image_urls(obj, urls=None):
@@ -608,19 +668,46 @@ class AsyncChatbot:
                                     self.choice_id = choice_id
 
                                     # DELTA CHUNKING LOGIC FOR LIVE STREAMING
+                                    chunk_to_yield = ""
+                                    
+                                    # Handle thought chunk building
+                                    if current_thought and current_thought != previous_thought:
+                                        if current_thought.startswith(previous_thought):
+                                            thought_diff = current_thought[len(previous_thought):]
+                                        else:
+                                            thought_diff = current_thought
+                                            
+                                        previous_thought = current_thought
+                                        
+                                        if not thought_started:
+                                            chunk_to_yield += "<think>\n"
+                                            thought_started = True
+                                            
+                                        chunk_to_yield += thought_diff
+
+                                    # Handle main content chunk building
                                     chunk_delta = content[prev_content_length:]
                                     prev_content_length = len(content)
 
-                                    if chunk_delta or images or sources:  # Only yield if there's actually new text or images or sources to show
+                                    if chunk_delta:
+                                        # Close the think tag immediately when the main text starts generating
+                                        if thought_started and not thought_ended:
+                                            chunk_to_yield += "\n</think>\n\n"
+                                            thought_ended = True
+                                        chunk_to_yield += chunk_delta
+                                        
+                                    full_streamed_text += chunk_to_yield
+
+                                    if chunk_to_yield or images or sources:  # Only yield if there's actually new text or images or sources to show
                                         yield {
-                                            "content": content,       # The complete, accumulated text so far
-                                            "chunk": chunk_delta,     # THE LIVE DELTA CHUNK (Use this for your fast UI typing!)
+                                            "content": full_streamed_text, # The complete, accumulated text (including <think> blocks)
+                                            "chunk": chunk_to_yield,       # THE LIVE DELTA CHUNK
                                             "conversation_id": conversation_id,
                                             "response_id": response_id,
-                                            "choice_id": choice_id,   # ADDED: choice_id required for persistent streaming
+                                            "choice_id": choice_id,
                                             "images": images,
                                             "videos": videos,
-                                            "sources": sources,       # THE GROUNDING WEB SOURCES
+                                            "sources": sources,
                                             "error": False,
                                         }
                 except json.JSONDecodeError:
@@ -744,12 +831,18 @@ class AsyncChatbot:
                 return {"content": "Failed to parse response body. No valid data found.", "error": True}
 
             try:
+                def iter_all_strings(obj):
+                    if isinstance(obj, str): yield obj
+                    elif isinstance(obj, list):
+                        for item in obj: yield from iter_all_strings(item)
+                    elif isinstance(obj, dict):
+                        for item in obj.values(): yield from iter_all_strings(item)
+
                 content = ""
                 if len(body) > 4 and len(body[4]) > 0 and len(body[4][0]) > 1:
                     raw_content = body[4][0][1]
                     
                     # ROBUST TEXT EXTRACTION LOGIC 
-                    # Recursively flattens nested lists back into standard text strings
                     def extract_text(item):
                         if isinstance(item, str): 
                             return item
@@ -758,6 +851,53 @@ class AsyncChatbot:
                         return str(item) if item is not None else ""
                         
                     content = extract_text(raw_content)
+
+                # --- UPGRADED: ROBUST THOUGHT PROCESS EXTRACTION (FOR NON-STREAMING) ---
+                current_thought = ""
+                
+                try:
+                    for idx in [34, 37, 131, 136, 137]:
+                        candidates = [body]
+                        if len(body) > 4 and isinstance(body[4], list): candidates.append(body[4][0] if len(body[4]) > 0 and isinstance(body[4][0], list) else body[4])
+                        if len(body) > 0 and isinstance(body[0], list): candidates.append(body[0])
+                        
+                        for cand in candidates:
+                            if len(cand) > idx and cand[idx]:
+                                val = cand[idx]
+                                if isinstance(val, list):
+                                    if isinstance(val[0], str): current_thought = val[0]
+                                    elif isinstance(val[0], list) and isinstance(val[0][0], str): current_thought = val[0][0]
+                                    elif len(val) > 6 and isinstance(val[6], list) and isinstance(val[6][0], str): current_thought = val[6][0]
+                                if current_thought: break
+                        if current_thought: break
+                except Exception: pass
+                
+                if not current_thought:
+                    all_strs = list(iter_all_strings(body))
+                    all_strs.sort(key=len, reverse=True)
+                    for s in all_strs:
+                        if len(s) > 30 and " " in s and not s.startswith("c_") and not s.startswith("r_") and not s.startswith("rc_"):
+                            if s != content and s != content + "\n":
+                                current_thought = s
+                                break
+                                
+                if not current_thought:
+                    for item in iter_all_strings(body):
+                        if item.startswith("!O"):
+                            try:
+                                b64 = item[1:] + "=" * (-len(item[1:]) % 4)
+                                dec = base64.urlsafe_b64decode(b64)
+                                strs = re.findall(b'[\x20-\x7e\n\r]{30,}', dec)
+                                if strs: 
+                                    current_thought = "\n".join([s.decode('utf-8', errors='ignore') for s in strs])
+                                    break
+                            except: pass
+
+                # Combine thought tags around the extracted thought for the final block
+                final_content = ""
+                if current_thought:
+                    final_content += f"<think>\n{current_thought}\n</think>\n\n"
+                final_content += content
 
                 conversation_id = body[1][0] if len(body) > 1 and len(body[1]) > 0 else self.conversation_id
                 response_id = body[1][1] if len(body) > 1 and len(body[1]) > 1 else self.response_id
@@ -890,7 +1030,7 @@ class AsyncChatbot:
                 content = re.sub(r'(?:https?://)?(?:[^)\s]*?)googleusercontent\.com/youtube_content/\S+', '', content)
 
                 results = {
-                    "content": content,
+                    "content": final_content, # Upgraded text payload
                     "conversation_id": conversation_id,
                     "response_id": response_id,
                     "choice_id": choice_id,
@@ -899,7 +1039,7 @@ class AsyncChatbot:
                     "choices": choices,
                     "images": images,
                     "videos": videos,
-                    "sources": sources, # Include sources in standard response
+                    "sources": sources,
                     "error": False,
                 }
 

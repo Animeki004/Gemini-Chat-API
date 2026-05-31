@@ -220,6 +220,10 @@
         .user-msg-collapse-wrap.expanded {
             max-height: 5000px; 
         }
+
+        /* Custom Details/Summary Styles for Thoughts */
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
     </style>
 </head>
 <body class="flex h-screen w-full bg-gray-850">
@@ -645,6 +649,19 @@
             return processed;
         }
 
+        // =========================================================================
+        // THOUGHTS (<think>) PARSING ALGORITHM
+        // =========================================================================
+        function parseThoughtBlocks(text) {
+            let processed = text.replace(/<think>([\s\S]*?)<\/think>/gi, (match, content) => {
+                return `\n\n<details class="mb-4 border border-gray-700 rounded-xl overflow-hidden group/thought shadow-sm bg-gray-800/50"><summary class="px-4 py-2.5 cursor-pointer font-medium text-[13px] text-gray-400 hover:text-gray-200 bg-gray-800/80 hover:bg-gray-700/80 flex items-center gap-2 select-none transition-colors"><svg class="w-4 h-4 transition-transform duration-200 group-open/thought:rotate-90 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg><span class="tracking-wide">Thoughts</span></summary><div class="px-4 py-3 text-[13.5px] text-gray-400 border-t border-gray-700 bg-[#1a1a1a] leading-relaxed overflow-x-auto">${marked.parse(content.trim())}</div></details>\n\n`;
+            });
+            processed = processed.replace(/<think>([\s\S]*)$/gi, (match, content) => {
+                return `\n\n<details open class="mb-4 border border-brand-500/50 rounded-xl overflow-hidden group/thought shadow-sm bg-brand-500/5"><summary class="px-4 py-2.5 cursor-pointer font-medium text-[13px] text-brand-400 flex items-center gap-2 select-none"><div class="w-3.5 h-3.5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin shrink-0"></div><span class="tracking-wide">Thinking...</span></summary><div class="px-4 py-3 text-[13.5px] text-gray-400 border-t border-brand-500/30 bg-[#1a1a1a] leading-relaxed overflow-x-auto">${marked.parse(content.trim())}</div></details>\n\n`;
+            });
+            return processed;
+        }
+
         function fallbackCopyTextToClipboard(text) {
             const textArea = document.createElement("textarea");
             textArea.value = text;
@@ -919,32 +936,6 @@
         let isCanvasModeEnabled = true;
         let lastEditorUpdate = 0; 
         let isCanvasPreviewing = false; 
-
-        // Optimized System Prompt mapping specifically to XML code_container and code_patch blocks
-        const CANVAS_INSTRUCTION_PROMPT = `[WORKSPACE MODE ACTIVE]
-You are operating in an advanced IDE Workspace. 
-You can EITHER output a complete file OR modify an existing one.
-
-To create a NEW file or rewrite completely, use:
-<code_container filename="example.html">
-<!-- Complete code here -->
-</code_container>
-
-To MODIFY an existing file, use:
-<code_patch filename="example.html">
-<search>
-Code to find (must match exactly)
-</search>
-<replace>
-New code to replace it with
-</replace>
-</code_patch>
-
-CRITICAL RULES:
-1. NEVER use standard markdown code blocks (e.g. \`\`\`html) for file generation.
-2. For <code_patch>, the <search> block MUST match the existing file content exactly.
-3. The code inside <code_container> must be complete and ready to run. Do not leave placeholders.
-4. You may explain your thoughts in plain text outside the XML tags.`;
 
         // ==========================================
         // CANVAS FUNCTIONS
@@ -2192,7 +2183,8 @@ CRITICAL RULES:
                     parsedHTML = parseCanvasBlocks(parsedHTML, index, isLastAI, msg.timestamp);
 
                     const processedText = embedInlineCitations(parsedHTML, msg.sources);
-                    nodeData.contentNode.innerHTML = marked.parse(processedText);
+                    const textWithThoughts = parseThoughtBlocks(processedText);
+                    nodeData.contentNode.innerHTML = marked.parse(textWithThoughts);
                     
                     applyMonacoEditors(nodeData.contentNode);
                     
@@ -2479,7 +2471,8 @@ CRITICAL RULES:
                                             parsedHTML = parseCanvasBlocks(parsedHTML, messageHistory.length - 1, true, getTimestamp());
 
                                             const processedLiveText = embedInlineCitations(parsedHTML, assistantSources);
-                                            streamNode.contentNode.innerHTML = marked.parse(processedLiveText);
+                                            const textWithThoughts = parseThoughtBlocks(processedLiveText);
+                                            streamNode.contentNode.innerHTML = marked.parse(textWithThoughts);
                                             
                                             updateYouTubeContainer(streamNode.youtubeContainer, streamNode.contentNode, assistantVideos);
                                             
