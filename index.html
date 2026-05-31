@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Modern API Tester</title>
     
-    <!-- Fonts -->
+    <!-- Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
-    <!-- Tailwind CSS Config must be defined BEFORE the CDN script in async environments -->
+    <!-- Tailwind CSS Config -->
     <script>
         window.tailwind = window.tailwind || {};
         window.tailwind.config = {
@@ -119,107 +120,39 @@
             40% { transform: scale(1); opacity: 1; }
         }
 
-        /* Sidebar transitions */
+        /* Animations */
         .sidebar-transition { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-
-        /* Hide Scrollbar for Carousels */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes fade-in-up {
+            0% { opacity: 0; transform: translateY(10px) scale(0.98); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .animate-fade-in-up { animation: fade-in-up 0.25s ease-out forwards; }
 
         /* Advanced Mic Recording Pulse Animation */
-        .mic-active {
-            color: #ef4444 !important; /* Tailwind Red 500 */
-        }
-        .mic-speaking svg {
-            animation: mic-speak-pulse 0.25s infinite alternate ease-in-out;
-        }
+        .mic-active { color: #ef4444 !important; }
+        .mic-speaking svg { animation: mic-speak-pulse 0.25s infinite alternate ease-in-out; }
         @keyframes mic-speak-pulse {
             0% { transform: scale(1); filter: drop-shadow(0 0 0px rgba(239,68,68,0)); }
             100% { transform: scale(1.25); filter: drop-shadow(0 0 6px rgba(239,68,68,0.8)); }
         }
 
         /* NATIVE GEMINI INLINE CITATION HOVER LOGIC */
-        .gemini-source-wrapper {
-            position: relative;
-            display: inline;
-        }
-        .gemini-source-text {
-            transition: background-color 0.2s, color 0.2s;
-            border-radius: 4px;
-            cursor: default;
-        }
-        .gemini-source-wrapper:has(.gemini-source-pill:hover) .gemini-source-text {
-            background-color: #1a2b4c;
-            color: #a8c7fa;
-        }
-        .gemini-source-pill {
-            display: inline-block;
-            margin-left: 0.25rem;
-            position: relative;
-            vertical-align: middle;
-            transform: translateY(-2px);
-            cursor: default;
-        }
+        .gemini-source-wrapper { position: relative; display: inline; }
+        .gemini-source-text { transition: background-color 0.2s, color 0.2s; border-radius: 4px; cursor: default; }
+        .gemini-source-wrapper:has(.gemini-source-pill:hover) .gemini-source-text { background-color: #1a2b4c; color: #a8c7fa; }
+        .gemini-source-pill { display: inline-block; margin-left: 0.25rem; position: relative; vertical-align: middle; transform: translateY(-2px); cursor: default; }
         .gemini-source-tooltip {
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            margin-bottom: 0.5rem;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.2s ease-in-out;
-            width: 16rem;
-            background-color: #1e1e1e;
-            border: 1px solid #374151; 
-            border-radius: 0.75rem;
-            padding: 0.75rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
-            z-index: 9999;
-            white-space: normal;
-            text-align: left;
-            display: flex;
-            flex-direction: column;
-            cursor: pointer;
-            text-decoration: none !important;
-            pointer-events: none; 
-            border-bottom: none !important; 
+            position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 0.5rem; opacity: 0; visibility: hidden; transition: all 0.2s ease-in-out; width: 16rem; background-color: #1e1e1e; border: 1px solid #374151; border-radius: 0.75rem; padding: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4); z-index: 9999; white-space: normal; text-align: left; display: flex; flex-direction: column; cursor: pointer; text-decoration: none !important; pointer-events: none; border-bottom: none !important; 
         }
-        .gemini-source-tooltip::before {
-            content: '';
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            height: 1.5rem;
-            background: transparent;
-        }
-        .gemini-source-tooltip::after {
-            content: '';
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            border-width: 6px;
-            border-style: solid;
-            border-color: #1e1e1e transparent transparent transparent;
-        }
-        .gemini-source-pill:hover .gemini-source-tooltip {
-            opacity: 1;
-            visibility: visible;
-            pointer-events: auto; 
-        }
+        .gemini-source-tooltip::before { content: ''; position: absolute; top: 100%; left: 0; right: 0; height: 1.5rem; background: transparent; }
+        .gemini-source-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border-width: 6px; border-style: solid; border-color: #1e1e1e transparent transparent transparent; }
+        .gemini-source-pill:hover .gemini-source-tooltip { opacity: 1; visibility: visible; pointer-events: auto; }
 
         /* User Message Collapsing */
-        .user-msg-collapse-wrap {
-            max-height: 140px; 
-            overflow: hidden;
-            position: relative;
-            transition: max-height 0.3s ease-in-out;
-        }
-        .user-msg-collapse-wrap.expanded {
-            max-height: 5000px; 
-        }
+        .user-msg-collapse-wrap { max-height: 140px; overflow: hidden; position: relative; transition: max-height 0.3s ease-in-out; }
+        .user-msg-collapse-wrap.expanded { max-height: 5000px; }
 
         /* Custom Details/Summary Styles for Thoughts */
         details > summary { list-style: none; }
@@ -326,27 +259,50 @@
             <h2 class="text-2xl font-semibold text-gray-200">How can I help you today?</h2>
         </div>
 
-        <!-- Input Area -->
-        <div class="shrink-0 px-4 md:px-8 pb-6 pt-2 bg-gradient-to-t from-gray-850 via-gray-850 to-transparent">
-            <div class="max-w-3xl mx-auto w-full relative">
+        <!-- Input Area Container (Wrapped for DropZone) -->
+        <div class="shrink-0 px-4 md:px-8 pb-6 pt-2 bg-gradient-to-t from-gray-850 via-gray-850 to-transparent relative z-20">
+            <div id="dropZoneContainer" class="max-w-3xl mx-auto w-full relative">
+                
+                <!-- Modern Global Drag & Drop Overlay -->
+                <div id="dragOverlay" class="absolute -inset-4 z-50 hidden flex-col items-center justify-center bg-gray-900/95 backdrop-blur-md border-2 border-dashed border-brand-500 rounded-[2rem] transition-all pointer-events-none shadow-[0_0_40px_rgba(59,130,246,0.15)]">
+                    <i class="ph ph-upload-simple text-5xl text-brand-400 mb-3 animate-bounce"></i>
+                    <span class="text-gray-100 font-semibold text-xl tracking-tight">Drop files to attach</span>
+                    <span class="text-gray-400 text-sm mt-1.5 font-medium">Supports code, images, and documents</span>
+                </div>
                 
                 <!-- Active Modifiers Pill Container (e.g. Workspace Enabled) -->
                 <div id="activeModifiersContainer" class="flex flex-wrap gap-2 mb-2 px-1 empty:hidden">
-                    <div id="workspaceModePill" class="hidden items-center gap-1.5 bg-brand-500/10 border border-brand-500/30 text-brand-400 text-xs px-3 py-1.5 rounded-lg shadow-sm">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-                        <span class="font-medium tracking-wide">Workspace Enabled</span>
-                        <button type="button" onclick="setCanvasMode(false)" class="ml-1 text-brand-500 hover:text-white transition-colors bg-brand-500/20 hover:bg-brand-500/50 rounded-full p-0.5">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
+                    <div id="workspaceModeContainer" class="relative hidden">
+                        <!-- Clickable Workspace Pill -->
+                        <div id="workspaceModePill" class="flex items-center gap-1.5 bg-brand-500/10 border border-brand-500/30 text-brand-400 text-xs px-3 py-1.5 rounded-lg shadow-sm cursor-pointer hover:bg-brand-500/20 transition-colors select-none" onclick="toggleWorkspaceMenu(event)">
+                            <i class="ph ph-layout text-sm"></i>
+                            <span class="font-medium tracking-wide">Workspace Enabled</span>
+                            <i class="ph ph-caret-down text-[10px] ml-0.5 opacity-70"></i>
+                            
+                            <button type="button" onclick="setCanvasMode(false); event.stopPropagation();" class="ml-1 text-brand-500 hover:text-white transition-colors bg-brand-500/20 hover:bg-brand-500/50 rounded-full p-0.5">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Popover Menu for Attached Files -->
+                        <div id="workspaceFilesMenu" class="hidden absolute bottom-full left-0 mb-2 w-64 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-30 py-2 flex-col max-h-64 overflow-y-auto">
+                            <div class="px-4 pb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-700 mb-1 flex justify-between items-center">
+                                <span>Context Files</span>
+                                <span class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded text-[9px]">Select to attach</span>
+                            </div>
+                            <div id="workspaceFilesList" class="flex flex-col">
+                                <!-- Populated dynamically by JS -->
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Multi-File Attachment Preview Container -->
-                <div id="attachmentsPreview" class="hidden absolute bottom-full mb-3 left-0 bg-gray-800 border border-gray-700 rounded-xl p-3 shadow-xl z-10 w-full max-w-full overflow-x-auto flex gap-3 scroll-smooth">
+                <div id="attachmentsPreview" class="hidden absolute bottom-full mb-3 left-0 bg-gray-800/90 backdrop-blur-sm border border-gray-700 rounded-[1.25rem] p-3 shadow-2xl z-10 w-full max-w-full overflow-x-auto flex gap-3 scroll-smooth">
                     <!-- Files injected dynamically -->
                 </div>
 
-                <!-- Input Box Container -->
+                <!-- Input Box -->
                 <div class="relative flex items-end bg-gray-800 rounded-2xl shadow-lg border border-gray-700 focus-within:border-gray-500 transition-colors">
                     
                     <input type="file" id="fileInput" multiple accept="*/*" class="hidden" onchange="handleFileUpload(event)">
@@ -356,28 +312,28 @@
                         <!-- New Plus Menu Button -->
                         <div class="relative plus-menu-container">
                             <button type="button" onclick="togglePlusMenu()" class="p-3 text-gray-400 hover:text-gray-200 transition-colors rounded-full flex-shrink-0" title="More options">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                <i class="ph ph-plus text-xl"></i>
                             </button>
                             <!-- Plus Popover Menu -->
                             <div id="plusMenu" class="hidden absolute bottom-full left-0 mb-2 w-52 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-20 py-1.5 overflow-hidden">
                                 <button type="button" onclick="setCanvasMode(true)" class="w-full text-left px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2.5 transition-colors">
-                                    <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                                    <i class="ph ph-layout text-brand-400 text-lg"></i>
                                     Enable Workspace
                                 </button>
                             </div>
                         </div>
 
                         <button type="button" onclick="document.getElementById('fileInput').click()" class="p-3 text-gray-400 hover:text-gray-200 transition-colors rounded-full flex-shrink-0" title="Attach Files">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                            <i class="ph ph-paperclip text-xl transform -rotate-45"></i>
                         </button>
                         
-                        <!-- New Speech to Text Microphone Button -->
+                        <!-- Speech to Text Microphone Button -->
                         <button type="button" id="micBtn" onclick="toggleMicrophone()" class="p-3 text-gray-400 hover:text-gray-200 transition-colors rounded-full flex-shrink-0" title="Dictate prompt">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19 11v1a7 7 0 01-14 0v-1M12 4a3 3 0 00-3 3v4a3 3 0 106 0V7a3 3 0 00-3-3z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 19v3"></path></svg>
+                            <i class="ph ph-microphone text-xl"></i>
                         </button>
                     </div>
 
-                    <textarea id="messageInput" rows="1" placeholder="Message the AI..." class="w-full py-3.5 px-1 bg-transparent focus:outline-none text-gray-100 placeholder-gray-400 resize-none max-h-48 overflow-y-auto leading-relaxed"></textarea>
+                    <textarea id="messageInput" rows="1" placeholder="Message the AI... (or drop files)" class="w-full py-3.5 px-1 bg-transparent focus:outline-none text-gray-100 placeholder-gray-400 resize-none max-h-48 overflow-y-auto leading-relaxed"></textarea>
                     
                     <button type="button" onclick="handleSendAction()" id="sendBtn" class="p-2 mb-2 mr-2 rounded-xl bg-white text-gray-900 hover:bg-gray-200 transition-colors disabled:opacity-30 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed shadow-sm flex items-center justify-center h-9 w-9 shrink-0">
                         <!-- Send Icon -->
@@ -397,11 +353,11 @@
     <aside id="sidePlayerPanel" class="w-0 shrink-0 overflow-hidden bg-[#171717] border-l border-gray-800 flex flex-col absolute right-0 md:relative h-full transition-all duration-300 z-30 shadow-2xl">
         <div class="flex items-center justify-between p-3.5 border-b border-gray-800 bg-gray-900">
             <div class="flex items-center gap-2 overflow-hidden pr-2">
-                <svg class="w-5 h-5 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+                <i class="ph-fill ph-youtube-logo text-red-500 text-xl shrink-0"></i>
                 <h3 id="sidePlayerTitle" class="text-sm font-semibold text-gray-200 truncate">Video Player</h3>
             </div>
             <button onclick="closeSidePlayer()" class="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-800 shrink-0 transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <i class="ph ph-x text-lg"></i>
             </button>
         </div>
         <div class="flex-1 w-full flex flex-col bg-black">
@@ -417,7 +373,7 @@
         </div>
     </aside>
 
-    <!-- NEW: Draggable Resizer Element -->
+    <!-- Draggable Resizer Element -->
     <div id="resizer" class="hidden md:hidden w-[4px] cursor-col-resize bg-gray-800 hover:bg-brand-500 transition-colors z-50 shrink-0"></div>
 
     <!-- Right Side Canvas Panel (Workspace) -->
@@ -428,7 +384,7 @@
                 <!-- Tabs injected here -->
             </div>
             <button onclick="closeCanvasPanel()" class="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 shrink-0 ml-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <i class="ph ph-x text-lg"></i>
             </button>
         </div>
 
@@ -440,22 +396,20 @@
                 <span class="text-[10px] bg-gray-700 px-1.5 py-0.5 rounded text-gray-400 group-hover:text-gray-200">Crucial</span>
             </label>
 
-            <!-- NEW: Version Switcher -->
+            <!-- Version Switcher -->
             <div id="versionSwitcher" class="hidden items-center gap-1.5 bg-gray-900 rounded-lg px-2 py-1 border border-gray-700 absolute left-1/2 -translate-x-1/2">
-                <button id="versionPrevBtn" onclick="changeCanvasVersion(-1)" class="text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 p-0.5 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+                <button id="versionPrevBtn" onclick="changeCanvasVersion(-1)" class="text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 p-0.5 transition-colors"><i class="ph ph-caret-left"></i></button>
                 <span class="text-[11px] text-gray-300 font-mono w-10 text-center select-none" id="versionLabel">v1/3</span>
-                <button id="versionNextBtn" onclick="changeCanvasVersion(1)" class="text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 p-0.5 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+                <button id="versionNextBtn" onclick="changeCanvasVersion(1)" class="text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 p-0.5 transition-colors"><i class="ph ph-caret-right"></i></button>
             </div>
 
             <div class="flex gap-2">
-                <!-- NEW: Dynamic Preview HTML Button -->
+                <!-- Dynamic Preview HTML Button -->
                 <button id="canvasPreviewBtn" onclick="toggleCanvasPreview()" class="hidden flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors border border-gray-700 bg-gray-800 px-2.5 py-1 rounded-lg shadow-sm">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                    Preview
+                    <i class="ph ph-play text-sm"></i> Preview
                 </button>
                 <button onclick="copyCurrentCanvas()" class="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors border border-gray-700 bg-gray-800 px-2.5 py-1 rounded-lg shadow-sm">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                    Copy
+                    <i class="ph ph-copy text-sm"></i> Copy
                 </button>
             </div>
         </div>
@@ -463,7 +417,7 @@
         <!-- Global Monaco Editor Container for Canvas -->
         <div id="globalCanvasMonaco" class="flex-1 w-full h-full relative bg-[#1e1e1e]"></div>
         
-        <!-- NEW: Iframe for Visual Preview of HTML files -->
+        <!-- Iframe for Visual Preview of HTML files -->
         <iframe id="globalCanvasPreview" class="hidden flex-1 w-full h-full bg-white border-0" sandbox="allow-scripts allow-modals allow-same-origin allow-popups allow-forms"></iframe>
     </aside>
 
@@ -474,10 +428,10 @@
         
         <div class="absolute top-4 right-4 flex gap-3 z-10">
             <button id="downloadModalBtn" class="p-2.5 bg-gray-800/80 text-white rounded-xl hover:bg-gray-700 transition-colors border border-gray-700" title="Download Image">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                <i class="ph ph-download-simple text-xl"></i>
             </button>
             <button onclick="closeImageModal()" class="p-2.5 bg-gray-800/80 text-white rounded-xl hover:bg-gray-700 transition-colors border border-gray-700" title="Close Preview">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <i class="ph ph-x text-xl"></i>
             </button>
         </div>
         
@@ -753,7 +707,7 @@
             let html = `
                 <div class="mt-5 bg-[#1f1f1f] rounded-xl overflow-hidden border border-[#333] shadow-sm w-full max-w-3xl">
                     <div class="px-4 py-3 bg-[#282828] border-b border-[#333] flex items-center gap-2">
-                        <svg class="w-4 h-4 text-[#ff0000]" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+                        <i class="ph-fill ph-youtube-logo text-red-500 text-lg"></i>
                         <span class="text-[13px] font-semibold text-gray-200 tracking-wide">YouTube</span>
                     </div>
                     <div class="flex flex-col">
@@ -780,7 +734,7 @@
                                 <img src="${vid.thumbnail}" onerror="this.src='https://img.youtube.com/vi/${vidId}/default.jpg'" class="w-full h-full object-cover opacity-90 group-hover/yt:opacity-100 transition-opacity duration-300">
                                 <div class="absolute inset-0 flex items-center justify-center bg-black/10 group-hover/yt:bg-transparent transition-colors">
                                     <div class="w-12 h-8 bg-[#ff0000] rounded-lg flex items-center justify-center shadow-lg group-hover/yt:scale-105 transition-transform">
-                                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                        <i class="ph-fill ph-play text-white"></i>
                                     </div>
                                 </div>
                             </div>
@@ -858,7 +812,7 @@
                 if (lang === 'html') {
                     const previewBtn = document.createElement('button');
                     previewBtn.className = 'flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-100 transition-colors py-1';
-                    previewBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> Preview`;
+                    previewBtn.innerHTML = `<i class="ph ph-play text-sm"></i> Preview`;
                     
                     iframe = document.createElement('iframe');
                     iframe.style.width = '100%';
@@ -876,11 +830,11 @@
                             iframe.srcdoc = editorInstance.getValue() + scriptInject;
                             monacoDiv.style.display = 'none';
                             iframe.style.display = 'block';
-                            previewBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg> Code`;
+                            previewBtn.innerHTML = `<i class="ph ph-code text-sm"></i> Code`;
                         } else {
                             monacoDiv.style.display = 'block';
                             iframe.style.display = 'none';
-                            previewBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> Preview`;
+                            previewBtn.innerHTML = `<i class="ph ph-play text-sm"></i> Preview`;
                             setTimeout(() => { if (editorInstance) editorInstance.layout(); }, 10);
                         }
                     };
@@ -889,7 +843,7 @@
 
                 const copyBtn = document.createElement('button');
                 copyBtn.className = 'flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-100 transition-colors py-1';
-                copyBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg> Copy code`;
+                copyBtn.innerHTML = `<i class="ph ph-copy text-sm"></i> Copy code`;
                 
                 actionsDiv.appendChild(copyBtn);
                 headerBar.appendChild(actionsDiv);
@@ -919,7 +873,7 @@
                 copyBtn.onclick = () => {
                     fallbackCopyTextToClipboard(editorInstance.getValue());
                     const originalHtml = copyBtn.innerHTML;
-                    copyBtn.innerHTML = `<svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> <span class="text-emerald-400">Copied!</span>`;
+                    copyBtn.innerHTML = `<i class="ph ph-check text-emerald-400 text-sm"></i> <span class="text-emerald-400">Copied!</span>`;
                     setTimeout(() => { copyBtn.innerHTML = originalHtml; }, 2000);
                 };
             });
@@ -936,6 +890,46 @@
         let isCanvasModeEnabled = true;
         let lastEditorUpdate = 0; 
         let isCanvasPreviewing = false; 
+
+        // ==========================================
+        // MODERN DRAG AND DROP ARCHITECTURE
+        // ==========================================
+        const dragOverlay = document.getElementById('dragOverlay');
+        let globalDragCounter = 0;
+
+        window.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            globalDragCounter++;
+            if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+                dragOverlay.classList.remove('hidden');
+                dragOverlay.classList.add('flex');
+            }
+        });
+
+        window.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            globalDragCounter--;
+            if (globalDragCounter <= 0) {
+                globalDragCounter = 0;
+                dragOverlay.classList.add('hidden');
+                dragOverlay.classList.remove('flex');
+            }
+        });
+
+        window.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Must prevent default to allow dropping
+        });
+
+        window.addEventListener('drop', (e) => {
+            e.preventDefault();
+            globalDragCounter = 0;
+            dragOverlay.classList.add('hidden');
+            dragOverlay.classList.remove('flex');
+            
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                processFiles(e.dataTransfer.files);
+            }
+        });
 
         // ==========================================
         // CANVAS FUNCTIONS
@@ -955,16 +949,70 @@
         function setCanvasMode(enabled) {
             isCanvasModeEnabled = enabled;
             localStorage.setItem('canvasEnabled', enabled);
-            const pill = document.getElementById('workspaceModePill');
+            const container = document.getElementById('workspaceModeContainer');
             
             if (enabled) {
-                pill.classList.remove('hidden');
-                pill.classList.add('flex');
+                container.classList.remove('hidden');
             } else {
-                pill.classList.add('hidden');
-                pill.classList.remove('flex');
+                container.classList.add('hidden');
+                const menu = document.getElementById('workspaceFilesMenu');
+                if (menu) {
+                    menu.classList.add('hidden');
+                    menu.classList.remove('flex');
+                }
             }
             document.getElementById('plusMenu').classList.add('hidden');
+        }
+
+        function toggleWorkspaceMenu(e) {
+            if (e) e.stopPropagation();
+            const menu = document.getElementById('workspaceFilesMenu');
+            if (menu.classList.contains('hidden')) {
+                renderWorkspaceFilesMenu();
+                menu.classList.remove('hidden');
+                menu.classList.add('flex');
+            } else {
+                menu.classList.add('hidden');
+                menu.classList.remove('flex');
+            }
+        }
+
+        function renderWorkspaceFilesMenu() {
+            const list = document.getElementById('workspaceFilesList');
+            list.innerHTML = '';
+            
+            const files = Object.keys(openCanvases);
+            if (files.length === 0) {
+                list.innerHTML = '<div class="px-4 py-3 text-xs text-gray-500 italic text-center">No files in workspace yet.</div>';
+                return;
+            }
+
+            files.forEach(filename => {
+                const data = openCanvases[filename];
+                const isChecked = data.included ? 'checked' : '';
+                const safeFilename = filename.replace(/'/g, "\\'");
+                const html = `
+                    <label class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-700 cursor-pointer transition-colors group">
+                        <input type="checkbox" ${isChecked} onchange="toggleContextFile('${safeFilename}', this.checked)" class="w-4 h-4 rounded bg-gray-900 border-gray-600 text-brand-500 focus:ring-brand-500 focus:ring-offset-gray-800 cursor-pointer">
+                        <span class="text-sm font-mono text-gray-300 group-hover:text-white truncate flex-1 leading-none select-none mt-0.5">${filename}</span>
+                    </label>
+                `;
+                list.insertAdjacentHTML('beforeend', html);
+            });
+        }
+
+        function toggleContextFile(filename, isIncluded) {
+            if (openCanvases[filename]) {
+                openCanvases[filename].included = isIncluded;
+                saveCanvasState();
+                renderCanvasTabs(); // updates the visual indicators on canvas tabs
+                
+                // If it's the currently active tab, update the checkbox in the canvas header too
+                if (currentActiveCanvasFile === filename) {
+                    const mainCheck = document.getElementById('canvasIncludeCheck');
+                    if (mainCheck) mainCheck.checked = isIncluded;
+                }
+            }
         }
 
         function togglePlusMenu() {
@@ -973,7 +1021,15 @@
 
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.plus-menu-container')) {
-                document.getElementById('plusMenu').classList.add('hidden');
+                const pMenu = document.getElementById('plusMenu');
+                if (pMenu) pMenu.classList.add('hidden');
+            }
+            if (!e.target.closest('#workspaceModeContainer')) {
+                const wMenu = document.getElementById('workspaceFilesMenu');
+                if(wMenu) {
+                    wMenu.classList.add('hidden');
+                    wMenu.classList.remove('flex');
+                }
             }
         });
 
@@ -1072,6 +1128,12 @@
                  }
             }
             saveCanvasState();
+            
+            // Refresh Context Files menu if it is currently open
+            const menu = document.getElementById('workspaceFilesMenu');
+            if (menu && !menu.classList.contains('hidden')) {
+                renderWorkspaceFilesMenu();
+            }
         }
 
         function showCanvasOverlay(text) {
@@ -1122,14 +1184,14 @@
             if (isCanvasPreviewing) {
                 editorDiv.classList.add('hidden');
                 previewIframe.classList.remove('hidden');
-                previewBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg> Code`;
+                previewBtn.innerHTML = `<i class="ph ph-code text-sm"></i> Code`;
                 previewBtn.classList.add('bg-brand-600', 'text-white', 'border-brand-500');
                 previewBtn.classList.remove('bg-gray-800', 'text-gray-400', 'border-gray-700');
                 updateCanvasPreviewIframe();
             } else {
                 editorDiv.classList.remove('hidden');
                 previewIframe.classList.add('hidden');
-                previewBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> Preview`;
+                previewBtn.innerHTML = `<i class="ph ph-play text-sm"></i> Preview`;
                 previewBtn.classList.remove('bg-brand-600', 'text-white', 'border-brand-500');
                 previewBtn.classList.add('bg-gray-800', 'text-gray-400', 'border-gray-700');
                 setTimeout(() => { if (globalCanvasEditor) globalCanvasEditor.layout(); }, 10);
@@ -1167,7 +1229,7 @@
                         ${dotHtml} <span class="truncate">${filename}</span>
                     </div>
                     <button onclick="closeCanvasFile(event, '${filename}')" class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition-all shrink-0 ml-1">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        <i class="ph ph-x text-sm"></i>
                     </button>
                 `;
                 tabContainer.appendChild(tab);
@@ -1191,6 +1253,12 @@
                 }
             }
             renderCanvasTabs();
+            
+            // Refresh Context Files menu if it is currently open
+            const menu = document.getElementById('workspaceFilesMenu');
+            if (menu && !menu.classList.contains('hidden')) {
+                renderWorkspaceFilesMenu();
+            }
         }
 
         function switchCanvasTab(filename, forceOpen = true) {
@@ -1260,6 +1328,12 @@
             openCanvases[currentActiveCanvasFile].included = document.getElementById('canvasIncludeCheck').checked;
             renderCanvasTabs(); 
             saveCanvasState();
+            
+            // Refresh Context Files menu if it is currently open
+            const menu = document.getElementById('workspaceFilesMenu');
+            if (menu && !menu.classList.contains('hidden')) {
+                renderWorkspaceFilesMenu();
+            }
         }
 
         function copyCurrentCanvas() {
@@ -1765,10 +1839,12 @@
         }
 
         function handleFileUpload(event) {
-            const files = Array.from(event.target.files);
-            if (files.length === 0) return;
+            processFiles(event.target.files);
+            event.target.value = ''; 
+        }
 
-            files.forEach(file => {
+        function processFiles(files) {
+            Array.from(files).forEach(file => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const dataUrl = e.target.result;
@@ -1788,18 +1864,50 @@
                             canvas.width = width; canvas.height = height;
                             ctx.drawImage(img, 0, 0, width, height);
 
-                            selectedFiles.push({ name: file.name, url: canvas.toDataURL('image/jpeg', 0.85), isImage: true });
+                            selectedFiles.push({ name: file.name, url: canvas.toDataURL('image/jpeg', 0.85), isImage: true, size: file.size });
                             renderAttachmentsPreview();
                         };
                         img.src = dataUrl;
                     } else {
-                        selectedFiles.push({ name: file.name, url: dataUrl, isImage: false });
+                        selectedFiles.push({ name: file.name, url: dataUrl, isImage: false, size: file.size });
                         renderAttachmentsPreview();
                     }
                 };
                 reader.readAsDataURL(file);
             });
-            event.target.value = ''; 
+        }
+
+        function getFileIcon(ext) {
+            const map = {
+                'pdf': 'ph-file-pdf text-red-400',
+                'zip': 'ph-file-archive text-yellow-400',
+                'rar': 'ph-file-archive text-yellow-400',
+                'py': 'ph-file-code text-blue-400',
+                'js': 'ph-file-code text-yellow-300',
+                'jsx': 'ph-file-code text-blue-300',
+                'ts': 'ph-file-code text-blue-500',
+                'tsx': 'ph-file-code text-blue-500',
+                'html': 'ph-file-html text-orange-400',
+                'css': 'ph-file-css text-blue-300',
+                'json': 'ph-file-code text-green-400',
+                'md': 'ph-file-text text-gray-300',
+                'txt': 'ph-file-text text-gray-300',
+                'csv': 'ph-file-csv text-green-500',
+                'doc': 'ph-file-doc text-blue-500',
+                'docx': 'ph-file-doc text-blue-500',
+                'xls': 'ph-file-xls text-green-500',
+                'xlsx': 'ph-file-xls text-green-500'
+            };
+            return map[ext.toLowerCase()] || 'ph-file text-gray-400';
+        }
+
+        function formatBytes(bytes, decimals = 1) {
+            if (!+bytes) return '0 B';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
         }
 
         function renderAttachmentsPreview() {
@@ -1815,22 +1923,28 @@
             
             selectedFiles.forEach((file, index) => {
                 const wrapper = document.createElement('div');
-                wrapper.className = 'relative group shrink-0';
+                wrapper.className = 'relative group shrink-0 animate-fade-in-up';
                 
                 if (file.isImage) {
-                    wrapper.innerHTML = `<img src="${file.url}" class="h-16 w-16 object-cover rounded-lg border border-gray-700">`;
+                    wrapper.innerHTML = `<div class="h-14 w-14 rounded-xl border border-gray-700 bg-gray-900 overflow-hidden shadow-sm"><img src="${file.url}" class="h-full w-full object-cover"></div>`;
                 } else {
-                    const ext = (file.name.split('.').pop() || 'FILE').toUpperCase();
+                    const ext = (file.name.split('.').pop() || 'FILE').toLowerCase();
+                    const iconClass = getFileIcon(ext);
                     wrapper.innerHTML = `
-                        <div class="h-16 w-16 rounded-lg border border-gray-700 bg-gray-900 flex flex-col items-center justify-center p-1" title="${file.name}">
-                            <svg class="w-6 h-6 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-                            <span class="text-[9px] text-gray-300 font-mono truncate w-full text-center px-1">${ext}</span>
+                        <div class="flex items-center gap-3 p-2 bg-gray-800 border border-gray-700 hover:border-gray-500 transition-colors rounded-xl shadow-sm pr-4 max-w-[220px]">
+                            <div class="flex items-center justify-center w-10 h-10 bg-gray-900 rounded-lg shrink-0">
+                                <i class="ph ${iconClass} text-2xl"></i>
+                            </div>
+                            <div class="flex flex-col min-w-0 flex-1">
+                                <span class="text-[13px] font-medium text-gray-200 truncate leading-tight">${file.name}</span>
+                                <span class="text-[10px] text-gray-500 font-mono mt-0.5">${formatBytes(file.size || 0)}</span>
+                            </div>
                         </div>
                     `;
                 }
                 
                 wrapper.innerHTML += `
-                    <button type="button" onclick="removeAttachment(${index})" class="absolute -top-2 -right-2 bg-gray-900 hover:bg-gray-700 text-white rounded-full p-1 shadow-md transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 border border-gray-600">
+                    <button type="button" onclick="removeAttachment(${index})" class="absolute -top-2 -right-2 bg-gray-900 hover:bg-red-500 text-gray-400 hover:text-white rounded-full p-1 shadow-md transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 border border-gray-600 hover:border-red-500 z-10">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 `;
@@ -1924,7 +2038,7 @@
             fallbackCopyTextToClipboard(text);
             
             const orig = btn.innerHTML;
-            btn.innerHTML = `<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
+            btn.innerHTML = `<i class="ph ph-check text-emerald-400"></i>`;
             setTimeout(() => btn.innerHTML = orig, 2000);
         }
 
@@ -2018,10 +2132,10 @@
                 actionBar.className = 'user-action-bar mt-1.5 flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-200 pr-3';
                 actionBar.innerHTML = `
                     <button onclick="showEditUI(${index})" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors" title="Edit">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        <i class="ph ph-pencil-simple text-[15px]"></i>
                     </button>
                     <button onclick="copyMessageIndex(${index}, this)" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors" title="Copy">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        <i class="ph ph-copy text-[15px]"></i>
                     </button>
                 `;
 
@@ -2049,11 +2163,11 @@
                 actionBar.className = 'mt-2 flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-200';
                 
                 let actionsHTML = `
-                    <button onclick="copyMessageIndex(${index}, this)" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors" title="Copy"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>
-                    <button onclick="replyToMessage(${index})" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors ml-1" title="Reply"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg></button>
+                    <button onclick="copyMessageIndex(${index}, this)" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors" title="Copy"><i class="ph ph-copy text-[15px]"></i></button>
+                    <button onclick="replyToMessage(${index})" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors ml-1" title="Reply"><i class="ph ph-arrow-u-up-left text-[15px]"></i></button>
                 `;
                 if (isLastAI) {
-                    actionsHTML += `<button onclick="regenerateResponse()" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors ml-1" title="Regenerate"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>`;
+                    actionsHTML += `<button onclick="regenerateResponse()" class="p-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-md transition-colors ml-1" title="Regenerate"><i class="ph ph-arrows-clockwise text-[15px]"></i></button>`;
                 }
                 actionBar.innerHTML = actionsHTML;
 
@@ -2100,11 +2214,14 @@
                                 if (url.startsWith('data:image/')) {
                                     html += `<img src="${url}" onclick="openImageModal('${url}', '${name}')" class="h-20 object-contain rounded-lg border border-gray-700 cursor-pointer hover:opacity-90">`;
                                 } else {
-                                    const ext = (name.split('.').pop() || 'FILE').toUpperCase();
+                                    const ext = (name.split('.').pop() || 'FILE').toLowerCase();
+                                    const iconClass = getFileIcon(ext);
                                     html += `
-                                        <div class="h-20 w-20 rounded-lg border border-gray-700 bg-gray-900 flex flex-col items-center justify-center p-2" title="${name}">
-                                            <svg class="w-6 h-6 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-                                            <span class="text-[10px] text-gray-300 font-mono truncate w-full text-center">${ext}</span>
+                                        <div class="flex items-center gap-2 p-1.5 bg-gray-900 border border-gray-700 rounded-lg max-w-[180px] shadow-sm" title="${name}">
+                                            <div class="flex items-center justify-center w-8 h-8 bg-gray-800 rounded shrink-0">
+                                                <i class="ph ${iconClass} text-xl"></i>
+                                            </div>
+                                            <span class="text-[11px] font-medium text-gray-300 truncate pr-2">${name}</span>
                                         </div>
                                     `;
                                 }
@@ -2143,7 +2260,7 @@
                             const toggleBtn = document.createElement('button');
                             toggleBtn.className = 'mt-3 mb-1 text-gray-400 hover:text-white flex items-center justify-center transition-colors bg-gray-700/50 hover:bg-gray-600 w-7 h-7 rounded-full flex-shrink-0 border border-gray-600/50 self-center shadow-sm';
                             toggleBtn.title = 'Expand Message';
-                            toggleBtn.innerHTML = `<svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                            toggleBtn.innerHTML = `<i class="ph ph-caret-down transition-transform duration-300"></i>`;
                             
                             toggleBtn.onclick = () => {
                                 const isCollapsed = container.classList.contains('collapsed');
@@ -2151,12 +2268,12 @@
                                     container.classList.remove('collapsed');
                                     container.classList.add('expanded');
                                     toggleBtn.title = 'Collapse Message';
-                                    toggleBtn.innerHTML = `<svg class="w-4 h-4 rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                                    toggleBtn.innerHTML = `<i class="ph ph-caret-up transition-transform duration-300"></i>`;
                                 } else {
                                     container.classList.add('collapsed');
                                     container.classList.remove('expanded');
                                     toggleBtn.title = 'Expand Message';
-                                    toggleBtn.innerHTML = `<svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                                    toggleBtn.innerHTML = `<i class="ph ph-caret-down transition-transform duration-300"></i>`;
                                 }
                             };
                             
@@ -2317,130 +2434,146 @@
 
             setTimeout(() => { 
                 chatBox.scrollTop = chatBox.scrollHeight; 
-                autoScroll = true; // Ensure scrolling explicitly stays on at start
+                autoScroll = true; 
             }, 50);
 
-            abortController = new AbortController();
+            // AUTO-RETRY ARCHITECTURE FOR DROPPED SESSIONS
+            const maxRetries = 1;
+            let attempt = 0;
+            let success = false;
+            let hasStartedStreaming = false;
 
-            try {
-                // --- SMART INJECTION LOGIC (INCLUDES CANVAS CONTEXT) ---
-                let canvasContextString = "";
-                if (isCanvasModeEnabled) {
-                    for (const [filename, data] of Object.entries(openCanvases)) {
-                        if (data.included && data.versions.length > 0) {
-                            const activeCode = data.versions[data.currentIndex].code;
-                            canvasContextString += `\n\n--- Current Active File: ${filename} ---\n${activeCode}\n--- End of ${filename} ---\n`;
-                        }
-                    }
-                }
+            while (attempt <= maxRetries && !success) {
+                abortController = new AbortController();
 
-                const apiMessages = [];
-
-                if (sysPrompt) {
-                    apiMessages.push({ role: "system", content: sysPrompt });
-                }
-                
-                if (isCanvasModeEnabled && canvasContextString) {
-                    apiMessages.push({ role: "system", content: `[WORKSPACE STATE]${canvasContextString}[/WORKSPACE STATE]` });
-                }
-
-                messageHistory.forEach((m, index) => {
-                    if (m.role === 'user' && index === messageHistory.length - 1) {
-                        let textContent = "";
-                        const originalContent = JSON.parse(JSON.stringify(m.content));
-                        
-                        if (Array.isArray(originalContent)) {
-                            const txtObj = originalContent.find(c => c.type === 'text');
-                            if (txtObj) textContent = txtObj.text;
-                        } else {
-                            textContent = originalContent;
-                        }
-
-                        let injectedPrompt = "";
-
-                        if (isRegeneratingFlag) {
-                            injectedPrompt += `[SYSTEM NOTE]\nThe user requested to REGENERATE the previous response. Please provide a new, improved, or alternative answer.\n[/SYSTEM NOTE]\n\n`;
-                        } else if (isEditingFlag) {
-                            injectedPrompt += `[SYSTEM NOTE]\nThe user has EDITED their previous message to branch off the conversation. Treat this as a new direction and provide a fresh, updated response based on this new request.\n[/SYSTEM NOTE]\n\n`;
-                        }
-
-                        if (injectedPrompt) {
-                            textContent = injectedPrompt + `[USER REQUEST]\n${textContent}\n[/USER REQUEST]`;
-                        }
-
-                        if (Array.isArray(originalContent)) {
-                            const txtObj = originalContent.find(c => c.type === 'text');
-                            if (txtObj) {
-                                txtObj.text = textContent;
-                            } else {
-                                originalContent.push({ type: 'text', text: textContent });
+                try {
+                    // --- SMART INJECTION LOGIC (INCLUDES CANVAS CONTEXT) ---
+                    let canvasContextString = "";
+                    if (isCanvasModeEnabled) {
+                        for (const [filename, data] of Object.entries(openCanvases)) {
+                            if (data.included && data.versions.length > 0) {
+                                const activeCode = data.versions[data.currentIndex].code;
+                                canvasContextString += `\n\n--- Current Active File: ${filename} ---\n${activeCode}\n--- End of ${filename} ---\n`;
                             }
-                            apiMessages.push({ role: 'user', content: originalContent });
-                        } else {
-                            apiMessages.push({ role: 'user', content: textContent });
                         }
-                    } else {
-                        apiMessages.push({ role: m.role, content: m.content });
                     }
-                });
 
-                const response = await fetch(`${baseUrl}/v1/chat/completions`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-                    body: JSON.stringify({
-                        model: model,
-                        messages: apiMessages,
-                        stream: useStream,
-                        temperature: 0.7,
-                        canvas_mode: isCanvasModeEnabled
-                    }),
-                    signal: abortController.signal
-                });
+                    const apiMessages = [];
 
-                if (!response.ok) {
-                    const err = await response.json().catch(()=>({}));
-                    throw new Error(err.detail || `HTTP error ${response.status}`);
-                }
-
-                if (useStream) {
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder("utf-8");
+                    if (sysPrompt) {
+                        apiMessages.push({ role: "system", content: sysPrompt });
+                    }
                     
-                    chatBox.addEventListener('scroll', () => {
-                        const isAtBottom = chatBox.scrollHeight - chatBox.scrollTop <= chatBox.clientHeight + 100;
-                        if (!isAtBottom && isGenerating) {
-                            autoScroll = false;
-                        } else if (isAtBottom) {
-                            autoScroll = true;
+                    if (isCanvasModeEnabled && canvasContextString) {
+                        apiMessages.push({ role: "system", content: `[WORKSPACE STATE]${canvasContextString}[/WORKSPACE STATE]` });
+                    }
+
+                    messageHistory.forEach((m, index) => {
+                        if (m.role === 'user' && index === messageHistory.length - 1) {
+                            let textContent = "";
+                            const originalContent = JSON.parse(JSON.stringify(m.content));
+                            
+                            if (Array.isArray(originalContent)) {
+                                const txtObj = originalContent.find(c => c.type === 'text');
+                                if (txtObj) textContent = txtObj.text;
+                            } else {
+                                textContent = originalContent;
+                            }
+
+                            let injectedPrompt = "";
+
+                            if (isRegeneratingFlag) {
+                                injectedPrompt += `[SYSTEM NOTE]\nThe user requested to REGENERATE the previous response. Please provide a new, improved, or alternative answer.\n[/SYSTEM NOTE]\n\n`;
+                            } else if (isEditingFlag) {
+                                injectedPrompt += `[SYSTEM NOTE]\nThe user has EDITED their previous message to branch off the conversation. Treat this as a new direction and provide a fresh, updated response based on this new request.\n[/SYSTEM NOTE]\n\n`;
+                            }
+
+                            if (injectedPrompt) {
+                                textContent = injectedPrompt + `[USER REQUEST]\n${textContent}\n[/USER REQUEST]`;
+                            }
+
+                            if (Array.isArray(originalContent)) {
+                                const txtObj = originalContent.find(c => c.type === 'text');
+                                if (txtObj) {
+                                    txtObj.text = textContent;
+                                } else {
+                                    originalContent.push({ type: 'text', text: textContent });
+                                }
+                                apiMessages.push({ role: 'user', content: originalContent });
+                            } else {
+                                apiMessages.push({ role: 'user', content: textContent });
+                            }
+                        } else {
+                            apiMessages.push({ role: m.role, content: m.content });
                         }
                     });
 
-                    let fullAssistantText = "";
-                    let assistantImages = [];
-                    let assistantVideos = [];
-                    let assistantSources = [];
-                    let hasStartedStreaming = false;
-                    
-                    // Native fixes for chunked TCP streams and UI freezing
-                    let streamBuffer = '';
-                    let lastDomUpdate = 0;
+                    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                        body: JSON.stringify({
+                            model: model,
+                            messages: apiMessages,
+                            stream: useStream,
+                            temperature: 0.7,
+                            canvas_mode: isCanvasModeEnabled
+                        }),
+                        signal: abortController.signal
+                    });
 
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
+                    if (!response.ok) {
+                        const err = await response.json().catch(()=>({}));
+                        throw new Error(err.detail || err.error?.message || `HTTP error ${response.status}`);
+                    }
+
+                    if (useStream) {
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder("utf-8");
                         
-                        streamBuffer += decoder.decode(value, { stream: true });
-                        const lines = streamBuffer.split('\n');
-                        streamBuffer = lines.pop(); // Hold back the last fragmented line securely in the buffer
+                        chatBox.addEventListener('scroll', () => {
+                            const isAtBottom = chatBox.scrollHeight - chatBox.scrollTop <= chatBox.clientHeight + 100;
+                            if (!isAtBottom && isGenerating) {
+                                autoScroll = false;
+                            } else if (isAtBottom) {
+                                autoScroll = true;
+                            }
+                        });
+
+                        let fullAssistantText = "";
+                        let assistantImages = [];
+                        let assistantVideos = [];
+                        let assistantSources = [];
                         
-                        for (let line of lines) {
-                            line = line.trim();
-                            if (line.startsWith('data: ')) {
-                                const dataStr = line.slice(6);
-                                if (dataStr === '[DONE]') break;
-                                
-                                try {
-                                    const dataObj = JSON.parse(dataStr);
+                        // Native fixes for chunked TCP streams and UI freezing
+                        let streamBuffer = '';
+                        let lastDomUpdate = 0;
+
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            
+                            streamBuffer += decoder.decode(value, { stream: true });
+                            const lines = streamBuffer.split('\n');
+                            streamBuffer = lines.pop(); // Hold back the last fragmented line securely in the buffer
+                            
+                            for (let line of lines) {
+                                line = line.trim();
+                                if (line.startsWith('data: ')) {
+                                    const dataStr = line.slice(6);
+                                    if (dataStr === '[DONE]') break;
+                                    
+                                    let dataObj;
+                                    try {
+                                        dataObj = JSON.parse(dataStr);
+                                    } catch (e) {
+                                        continue; // Skip invalid JSON fragments until complete
+                                    }
+
+                                    // Catch explicit API stream errors (like backend dropping the session mid-stream)
+                                    if (dataObj.error) {
+                                        throw new Error(dataObj.error.message || dataObj.error || "API Stream Error");
+                                    }
+                                        
                                     const delta = dataObj.choices[0].delta;
                                     
                                     if (delta.content) {
@@ -2452,22 +2585,16 @@
                                         fullAssistantText += delta.content;
                                         
                                         const now = Date.now();
-                                        // DOM Thrashing Throttle (Flushes DOM at ~25 FPS to prevent frontend freezing)
+                                        // DOM Thrashing Throttle
                                         if (now - lastDomUpdate > 40) {
                                             lastDomUpdate = now;
                                             
-                                            // ----------------------------------------------------
-                                            // CANVAS STREAM PARSER INJECTION
-                                            // ----------------------------------------------------
                                             let parsedHTML = fullAssistantText;
-
-                                            // FIX: Strip enclosing markdown backticks to prevent UI Pills from being escaped
                                             parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*?<\/code_container>)\n?```/g, '$1');
                                             parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_container[\s\S]*)$/g, '$1');
                                             parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*?<\/code_patch>)\n?```/g, '$1');
                                             parsedHTML = parsedHTML.replace(/```[a-zA-Z]*\n?(<code_patch[\s\S]*)$/g, '$1');
                                             
-                                            // Process dynamic workspace blocks through our abstract parser
                                             parsedHTML = parseCanvasBlocks(parsedHTML, messageHistory.length - 1, true, getTimestamp());
 
                                             const processedLiveText = embedInlineCitations(parsedHTML, assistantSources);
@@ -2506,51 +2633,81 @@
                                             }
                                         });
                                     }
-                                } catch (e) { } 
+                                }
                             }
                         }
+
+                        messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages, videos: assistantVideos, sources: assistantSources, timestamp: getTimestamp() });
+                        saveChatState();
+
+                    } else {
+                        const data = await response.json();
+                        if (data.error) throw new Error(data.error.message || data.error);
+                        const msg = data.choices[0].message;
+                        let fullAssistantText = msg.content || "";
+                        let assistantImages = msg.images || [];
+                        let assistantVideos = msg.videos || [];
+                        let assistantSources = msg.sources || [];
+                        
+                        messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages, videos: assistantVideos, sources: assistantSources, timestamp: getTimestamp() });
+                        saveChatState();
                     }
 
-                    messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages, videos: assistantVideos, sources: assistantSources, timestamp: getTimestamp() });
-                    saveChatState();
+                    success = true; // Mark as successful to break out of the retry loop
 
-                } else {
-                    const data = await response.json();
-                    const msg = data.choices[0].message;
-                    let fullAssistantText = msg.content || "";
-                    let assistantImages = msg.images || [];
-                    let assistantVideos = msg.videos || [];
-                    let assistantSources = msg.sources || [];
-                    
-                    messageHistory.push({ role: "assistant", content: fullAssistantText, images: assistantImages, videos: assistantVideos, sources: assistantSources, timestamp: getTimestamp() });
-                    saveChatState();
-                }
-
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    // Extract what we have so far
-                    const nodeHTML = streamNode.contentNode.innerHTML;
-                    messageHistory.push({ role: "assistant", content: "*[Response stopped by user]*", images: [], videos: [], sources: [], timestamp: getTimestamp() });
-                    saveChatState();
-                } else {
-                    showToast(error.message);
-                    if (messageHistory.length > 0 && messageHistory[messageHistory.length - 1].role === 'user') {
-                        messageHistory.pop();
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        // Extract what we have so far
+                        const nodeHTML = streamNode.contentNode.innerHTML;
+                        messageHistory.push({ role: "assistant", content: "*[Response stopped by user]*", images: [], videos: [], sources: [], timestamp: getTimestamp() });
+                        saveChatState();
+                        success = true; // User aborted, do not retry
+                    } else {
+                        attempt++;
+                        // If we haven't started streaming yet, this means the connection dropped/failed on init
+                        // The backend auto-resets the session, so a transparent retry will hit a clean session!
+                        if (attempt <= maxRetries && !hasStartedStreaming) {
+                            console.warn(`Connection dropped. Auto-healing session and retrying (Attempt ${attempt})...`);
+                            await new Promise(r => setTimeout(r, 800)); // Brief pause
+                            continue; // Retry loop
+                        } else {
+                            // Exhausted retries or dropped mid-stream
+                            showToast(error.message);
+                            if (messageHistory.length > 0 && messageHistory[messageHistory.length - 1].role === 'user') {
+                                const failedMsg = messageHistory.pop();
+                                
+                                // UX Enhancement: Restore lost prompt back to text area!
+                                const textContent = Array.isArray(failedMsg.content) ? failedMsg.content.find(c => c.type === 'text')?.text : failedMsg.content;
+                                if (textContent && !messageInput.value) {
+                                    let cleanText = textContent.replace(/\[USER REQUEST\]\n([\s\S]*?)\n\[\/USER REQUEST\]/g, '$1');
+                                    cleanText = cleanText.replace(/\[SYSTEM NOTE\][\s\S]*?\[\/SYSTEM NOTE\]\n\n/g, '');
+                                    messageInput.value = cleanText;
+                                    messageInput.dispatchEvent(new Event('input'));
+                                }
+                            }
+                            saveChatState();
+                            
+                            if (!hasStartedStreaming && streamNode && streamNode.wrapper.parentNode) {
+                                chatBox.removeChild(streamNode.wrapper); // Remove empty bubble
+                            } else if (hasStartedStreaming) {
+                                streamNode.contentNode.innerHTML += `\n\n*[Connection lost: ${error.message}]*`; // Append error to partial response
+                            }
+                            break;
+                        }
                     }
-                    saveChatState();
                 }
-            } finally {
-                setGeneratingState(false);
-                abortController = null;
-                isRegeneratingFlag = false; 
-                isEditingFlag = false; 
-                
-                hideCanvasOverlay();
-                if (isCanvasPreviewing) updateCanvasPreviewIframe();
-                
-                messageInput.focus();
-                renderChat();
-            }
+            } // End while loop
+
+            setGeneratingState(false);
+            abortController = null;
+            isRegeneratingFlag = false; 
+            isEditingFlag = false; 
+            
+            hideCanvasOverlay();
+            if (isCanvasPreviewing) updateCanvasPreviewIframe();
+            
+            messageInput.focus();
+            if (success) renderChat();
         }
 
         function clearChat() {
